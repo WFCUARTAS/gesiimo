@@ -1,0 +1,11 @@
+﻿<AuthorizeView>
+    <Authorized>
+
+        <a style="color:white" href="PerfilUsuario">@context.User.Identity.Name</a>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <form method="post" action="Identity/Account/LogOut">
+            <button style="color:white" type="submit" class="nav-link btn btn-link"><b>Cerrar sesión</b></button>
+        </form>
+
+    </Authorized>
+</AuthorizeView>

@@ -1,0 +1,73 @@
+﻿@page "/Configuracion"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IConfiguracionService configuracionService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized>
+            @if (@context.User.IsInRole("administrador"))
+            {
+                <MudText Typo="Typo.h5"><b>Configuraciones</b></MudText>
+                <MudGrid Spacing="1" Class="mb-3 ">
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudPaper Class="pa-8 ma-2" Elevation="3">
+                            <MudTextField Label="Tiempo de preguntas" @bind-Value="@TiempoPregunta" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ActulizarTiempo" DisableElevation="true">Actualizar</MudButton>
+                        </MudPaper>
+                    </MudItem>
+
+                </MudGrid>
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  Administrador</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+
+}
+
+@code {
+
+    private bool loading = true;
+
+    int TiempoPregunta;
+    private Configuracion configuracionTiempo { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        configuracionTiempo = await configuracionService.GetConfiguracion("TiempoPregunta");
+        TiempoPregunta = Convert.ToInt32(configuracionTiempo.Parametro);
+
+        loading = false;
+    }
+
+    async Task ActulizarTiempo()
+    {
+        try
+        {
+            configuracionTiempo.Parametro = "" + TiempoPregunta;
+            await configuracionService.SetConfiguracion(configuracionTiempo);
+            Snackbar.Add("Dato actualizado", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+}

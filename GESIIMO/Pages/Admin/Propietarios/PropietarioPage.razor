@@ -1,0 +1,107 @@
+﻿@page "/propietarios"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IPropietarioService propietarioService
+@inject NavigationManager navigationManager
+
+@if (propietarios == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <div class="h2 font-weight-bold mb-3">Listado de Propietarios</div>
+
+    if (!propietarios.Any())
+    {
+        <div class="row col pb-3">
+            <RadzenButton Icon="add_circle_outline" Text="Agregar" Click="@AddPropietario" />
+        </div>
+
+        <p><em>No se encontraron resultados.</em></p>
+    }
+    else
+    {
+        <div class="row col">
+            <RadzenGrid PagerPosition="PagerPosition.Bottom" Data="@propietarios" TItem="Propietario"
+                        AllowFiltering="true" AllowPaging="true" PageSize="10" AllowSorting="true" AllowColumnResize="true"
+                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" FilterMode="FilterMode.Advanced"
+                        LogicalFilterOperator="LogicalFilterOperator.Or" ColumnWidth="200px">
+                <Columns>
+                    <RadzenGridColumn TItem="Propietario" Context="data" Bubble="false" Filterable="false"
+                                      Sortable="false" TextAlign="TextAlign.Center" Width="70px">
+                        <HeaderTemplate>
+                            <RadzenButton ButtonStyle="ButtonStyle.Info" Icon="add_business" Size="ButtonSize.Medium"
+                                          Click="@(() => AddPropietario())" />
+                        </HeaderTemplate>
+                        <Template Context="data">
+                            <RadzenButton ButtonStyle="ButtonStyle.Info" Icon="edit" Size="ButtonSize.Medium"
+                                          Click="@(() => EditPropietario(data.IdPropietario))" />
+                        </Template>
+                    </RadzenGridColumn>
+
+
+                    <RadzenGridColumn TItem="Propietario" Title="Propietario">
+                        <Template Context="data">
+                            <div class="row col">
+                                <small>@($"{@data.Nombre}  {data.Apellido}")</small>
+                            </div>
+                        </Template>
+                    </RadzenGridColumn>
+
+                    <RadzenGridColumn TItem="Propietario" Property="Mail" Title="Email" />
+                    <RadzenGridColumn TItem="Propietario" Property="Celular" Title="Celular" />
+                    <RadzenGridColumn TItem="Propietario" Title="Estado">
+                        <Template Context="data">
+                            <RadzenSwitch @bind-Value="@data.Estado" />
+                        </Template>
+                    </RadzenGridColumn>
+                </Columns>
+            </RadzenGrid>
+        </div>
+    }
+
+    <PropietarioForm @ref="propietarioForm" OnSaved="@OnSaved" OnCancel="@OnCancel" />
+}
+
+@code {
+    private IEnumerable<Propietario> propietarios;
+    private PropietarioForm propietarioForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        propietarios = await propietarioService.GetPropietarios(1);
+    }
+
+    private async Task AddPropietario()
+    {
+        await propietarioForm.Show(0);
+    }
+
+    private async Task EditPropietario(int idPropietario)
+    {
+        await propietarioForm.Show(idPropietario);
+    }
+
+
+    #region Eventos Form
+
+    private async Task OnSaved()
+    {
+        await UpdateGrid();
+    }
+
+    private void OnCancel()
+    {
+        propietarioForm.Hide();
+    }
+
+    #endregion
+}

@@ -1,0 +1,501 @@
+﻿@page "/AdminAsamblea/{idAsamblea:int}"
+
+@using GESIIMO.Data;
+@using GESIIMO.Model;
+@using GESIIMO.Services;
+@using Microsoft.AspNetCore.Identity;
+@using GESIIMO.Pages.Preguntas;
+
+@using ChartJs.Blazor.PieChart
+@using ChartJs.Blazor;
+@using ChartJs.Blazor.Util
+@using System.Timers
+@using GESIIMO.Pages.OpcionPreguntas
+
+@inject IAsambleaService asambleaService
+@inject IConjuntoService conjuntoService
+@inject IConexionService conexionService
+@inject ICuestionarioService cuestionarioService
+@inject IPreguntaService preguntaService
+@inject IConfiguracionService configuracionService
+@inject NavigationManager navigationManager
+@inject UserManager<ApplicationUser> _UserManager
+@inject ISnackbar Snackbar
+@inject IDialogService dialogService
+
+@implements IDisposable
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else if (Asamblea.FechaInicioReal == new DateTime(2000, 01, 01))
+{
+    <MudText Typo="Typo.h5"><b> La asamblea no se ha iniciado</b></MudText>
+}
+else if (!Asamblea.Estado && Asamblea.FechaInicioReal != new DateTime(2000, 01, 01))
+{
+    <MudText Typo="Typo.h5"><b> La asamblea ha finalizado con éxito</b></MudText>
+}
+else
+{
+    <MudGrid Spacing="1" Class="mb-3 ">
+
+        <MudItem xs="12" sm="12" md="9">
+            <MudText Typo="Typo.h4"><b> @Asamblea.Descripcion </b> </MudText>
+            <MudText Typo="Typo.h5">@Asamblea.FechaInicio  </MudText>
+        </MudItem>
+
+        <MudItem xs="12" sm="12" md="2">
+            <img src="logos/@Conjunto.Logo" height="150px" width="150px" />
+        </MudItem>
+
+        <MudItem xs="12" sm="12" md="1">
+            <MudButton EndIcon="@Icons.Material.Filled.Close" OnClick="Finalizar" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Finalizar</MudButton>
+        </MudItem>
+
+        <MudItem xs="12" sm="12" md="7">
+            <MudPaper Class="pa-8 ma-2" Elevation="3">
+                <MudText Typo="Typo.h5"><b>Listado de Cuestionarios</b></MudText>
+
+                @if (!Cuestionarios.Any())
+                {
+                    <div class="d-flex mt-3">
+                        <p><em>No se encontraron resultados.</em></p>
+                    </div>
+                }
+                else
+                {
+                    <MudExpansionPanels MultiExpansion="true">
+                        @foreach (var item in Cuestionarios)
+                        {
+
+                            <MudExpansionPanel HideIcon="true">
+                                <TitleContent>
+                                    <div class="d-flex">
+                                        <MudText Class="mt-1">@item.Descripcion</MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Title="Agregar" Color="Color.Error" OnClick="@(args => AddPregunta(item.IdCuestionario))"></MudIconButton>
+
+                                        <MudBadge Content="@item.CantPreguntas" Color="Color.Primary" Overlap="true" Class="d-flex ml-auto">
+                                            <MudIcon Icon="@Icons.Material.Filled.QuestionAnswer" Color="Color.Default" />
+                                        </MudBadge>
+                                    </div>
+                                </TitleContent>
+                                <ChildContent>
+
+                                    <MudTable Items="@item.Preguntas" Dense="true" Hover="true" Class="mt-3">
+                                        <HeaderContent>
+                                            <MudTh>Eliminar</MudTh>
+                                            <MudTh>Preguntas</MudTh>
+                                            <MudTh>Opciones</MudTh>
+                                            <MudTh>Accion</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd><MudIconButton Icon="@Icons.Material.Filled.Delete" Title="Borrar pregunta y respuestas" Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EliminarPregunta(context))"></MudIconButton></MudTd>
+                                            <MudTd>@context.PreguntaDescripcion</MudTd>
+                                            <MudTd>
+                                                <MudBadge Content="context.CantOpciones" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.QuestionAnswer" Color="Color.Error" Size="Size.Medium" OnClick="@(args => AddOpcionPregunta(context))" Disabled="context.IndRespondida"></MudIconButton>
+                                                </MudBadge>
+                                            </MudTd>
+                                            @if (!context.Estado)
+                                                        {
+                                                <MudTd>
+                                                    <MudButton EndIcon="@Icons.Material.Filled.PlayArrow" Color="Color.Success" Size="Size.Large" OnClick="@(args => ActivarPregunta(context))">Iniciar</MudButton>
+                                                </MudTd>
+                                                        }
+                                                        else
+                                                        {
+                                                <MudTd>
+                                                    <MudButton EndIcon="@Icons.Material.Filled.Stop" Color="Color.Error" Size="Size.Large" OnClick="@(args => DesactivarPregunta(context))">Pausar</MudButton>
+                                                    @if (context.Tiempo > 0)
+                                                                {
+                                                        <MudText Color="Color.Info" Typo="Typo.h5"><b>@ConvertirTiempo(context.Tiempo)</b></MudText>
+                                                                }
+                                                                else
+                                                                {
+                                                        <MudText Color="Color.Default" Typo="Typo.body1"> ¡Tiempo Agotado!  </MudText>
+                                                                }
+                                                </MudTd>
+                                                        }
+                                        </RowTemplate>
+                                    </MudTable>
+                                </ChildContent>
+                            </MudExpansionPanel>
+                        }
+                    </MudExpansionPanels>
+                }
+            </MudPaper>
+
+
+        </MudItem>
+
+        <MudItem xs="12" sm="12" md="5">
+            @******QUORUM*****@
+            <MudPaper Class="pa-5 ma-2" Elevation="12">
+                <MudItem xs="12" sm="12" md="12" Class="d-flex justify-end">
+                    <MudButton Icon="@Icons.Filled.Send" OnClick="Grafica_Quorum" Color="Color.Success" Variant="Variant.Filled">Recargar</MudButton>
+                </MudItem>
+
+                <Chart Config="GraficaQuorum.config_torta" Width="800" Height="600"></Chart>
+                <MudItem xs="12" sm="12" md="12">
+                    <MudGrid Spacing="1" Justify="Justify.Center">
+                        @foreach (var q in quorum)
+                        {
+                            <MudItem>
+                                <MudPaper Elevation="3" Style="padding:10px;">
+                                    <MudText Typo="Typo.h5">@q.Descripcion </MudText>
+                                    <MudText> @q.ValorQuorum %  </MudText>
+                                    <MudText> Cantidad: @q.Cantidad  </MudText>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudItem>
+
+                @foreach (var item in conexiones)
+                {
+                    <MudContainer>
+                        @if (item.Estado == "Conectado")
+                        {
+                            <MudFab Color="Color.Success" Icon="@Icons.Material.Filled.Person" Size="Size.Small" IconSize="Size.Small" Label="@item.Nombre" Class="ma-2" />
+                        }
+                        else
+                        {
+                            <MudFab Color="Color.Error" Icon="@Icons.Material.Filled.Person" Size="Size.Small" IconSize="Size.Small" Label="@item.Nombre" Class="ma-2" />
+                        }
+                    </MudContainer>
+                }
+
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+
+}
+
+
+@code {
+    [CascadingParameter] protected Task<AuthenticationState> AuthStat { get; set; }
+    [Parameter] public int idAsamblea { get; set; }
+
+    private Asamblea Asamblea { get; set; }
+    private Conjunto Conjunto { get; set; }
+    private Configuracion configuracionTiempo { get; set; }
+
+    bool loading = true;
+    string IdUsuario;
+    string ListaUsuarios = "";
+
+    private IEnumerable<Cuestionario> Cuestionarios { get; set; }
+
+    Timer time;
+    int TiempoPreguntas;
+
+    /// Datos para la grafica
+    Votacion GraficaQuorum = new Votacion();
+    IEnumerable<Quorum> quorum = new List<Quorum>();
+    IEnumerable<Conexion> conexiones = new List<Conexion>();
+
+
+    ///   PARA ENVIO SINCRONICO DE INFORMACION A LOS USUARIOS/////////
+    string username = null;
+    string grupo = null;
+    ChatClient cliente = null;
+    List<Message> messages = new List<Message>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Asamblea = await asambleaService.GetAsamblea(idAsamblea);
+        Conjunto = await conjuntoService.GetConjunto(Asamblea.IdConjunto);
+        if (Conjunto.Logo == null) Conjunto.Logo = "default.png";
+
+        configuracionTiempo = await configuracionService.GetConfiguracion("TiempoPregunta");
+        TiempoPreguntas = Convert.ToInt32(configuracionTiempo.Parametro);
+
+        CargarCuestionarios();
+
+        quorum = await asambleaService.GetQuorum(Asamblea.IdAsamblea);
+
+        ApplicationUser user = new ApplicationUser();
+        var autenticate = await AuthStat;
+
+        string name = autenticate.User.Identity.Name;
+        user = await _UserManager.FindByNameAsync(name);
+        IdUsuario = user.Id;
+
+        await Starchat();
+
+        await Grafica_Quorum();
+
+        await cliente.SendAsync("inicio", "");
+        loading = false;
+
+        time = new Timer();
+        time.Interval = 1000;
+        time.Elapsed += TimerOnElapsed;
+        time.Start();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && loading)
+        {
+
+        }
+    }
+
+    async Task CargarCuestionarios()
+    {
+        Cuestionarios = await cuestionarioService.GetCuestionarios(idAsamblea);
+        foreach (var cuestionario in Cuestionarios)
+        {
+            IEnumerable<Pregunta> Preguntas = new List<Pregunta>();
+            Preguntas = await preguntaService.GetPreguntas(cuestionario.IdCuestionario);
+            foreach (var p in Preguntas)
+            {
+                TimeSpan duracion = p.FechaActivacion.AddSeconds(TiempoPreguntas) - p.FechaActualServer;
+                p.Tiempo = Convert.ToInt32(duracion.TotalSeconds);
+            }
+
+            cuestionario.Preguntas = Preguntas;
+        }
+    }
+
+    private async Task Grafica_Quorum()
+    {
+        conexiones = await conexionService.GetConexiones(Asamblea.IdAsamblea);
+
+        Random aleatorio = new Random();
+
+        GraficaQuorum.config_torta.Data.Labels.Clear();
+        GraficaQuorum.config_torta.Data.Datasets.Clear();
+        GraficaQuorum.config_torta.Options.Title.Text = "QUÓRUM";
+
+        quorum = await asambleaService.GetQuorum(Asamblea.IdAsamblea);
+
+        string[] l = quorum.Select(q => q.Descripcion).ToArray();
+        IEnumerable<double> data = quorum.Select(q => q.ValorQuorum).ToArray();
+
+        string[] colores = new string[l.Length];
+
+        int cont = 0;
+        foreach (var opcion in quorum)
+        {
+            Byte r = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte g = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte b = Convert.ToByte(aleatorio.Next(30, 255));
+
+            GraficaQuorum.config_torta.Data.Labels.Add(opcion.Descripcion);
+            colores[cont] = ColorUtil.ColorString(r, g, b, 0.7);
+            cont++;
+        }
+
+        PieDataset<double> dataset = new PieDataset<double>(data)
+        {
+            BackgroundColor = colores
+        };
+
+        GraficaQuorum.config_torta.Data.Datasets.Add(dataset);
+
+    }
+
+    async Task ActivarPregunta(Pregunta p)
+    {
+        p.Estado = true;
+        p.Tiempo = TiempoPreguntas;
+        await preguntaService.ActivarPregunta(p);
+        await cliente.SendAsync("AgregarPregunta", "" + p.IdPregunta);
+    }
+
+    async Task DesactivarPregunta(Pregunta p)
+    {
+        p.Estado = false;
+        await preguntaService.SetPregunta(p);
+        await cliente.SendAsync("QuitarPregunta", "" + p.IdPregunta);
+    }
+
+    async Task AddPregunta(int idCuestionario)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("IdPregunta", 0);
+        parameters.Add("IdCuestionario", idCuestionario);
+        parameters.Add("Accion", "ADD");
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<GESIIMO.Pages.Preguntas.PreguntaForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await CargarCuestionarios();
+        }
+    }
+
+    private async Task EliminarPregunta(Pregunta data)
+    {
+        await ShowEliminarPreguntaForm(data.IdPregunta, data.PreguntaDescripcion);
+    }
+
+    private async Task ShowEliminarPreguntaForm(int idPregunta, string Pregunta)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(EliminarPreguntaForm.IdPregunta), idPregunta);
+        parameters.Add(nameof(EliminarPreguntaForm.Pregunta), Pregunta);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<EliminarPreguntaForm>("Eliminar", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await CargarCuestionarios();
+        }
+    }
+
+    async Task Finalizar()
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(ConfirmarFinalizarForm.asamblea), Asamblea.Descripcion);
+
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<ConfirmarFinalizarForm>("Finalizar asamblea", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            Asamblea.Estado = false;
+            Asamblea.FechaFin = DateTime.Now;
+            await asambleaService.SetAsamblea(Asamblea);
+            await asambleaService.SetQuorum(Asamblea.IdAsamblea);
+
+            await cliente.SendAsync("finalizo", "");
+            navigationManager.NavigateTo("/asambleas", true);
+        }
+    }
+
+    private async void AddOpcionPregunta(Pregunta data)
+    {
+        await ShowOpcionForm(data.IdPregunta);
+    }
+
+    private async Task ShowOpcionForm(int idPregunta)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(ListOpcionPreguntasPage.IdPregunta), idPregunta);
+
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<ListOpcionPreguntasPage>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await CargarCuestionarios();
+        }
+    }
+
+    async Task Starchat()
+    {
+        try
+        {
+            grupo = "" + idAsamblea;
+            username = "" + IdUsuario;
+            messages.Clear();
+            cliente = new ChatClient(username, "" + grupo, navigationManager);
+            cliente.MessageReceived += MessageReceived;
+            await cliente.StartAsync();
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+
+    }
+
+    async Task ListarUsuarios()
+    {
+        await cliente.SendAsync("listar", "");
+    }
+
+    ///se ejecuta al recivir un nuevo  mensaje
+    void MessageReceived(object sender, MessageReceivedEventArgs e)
+    {
+        bool isMine = false;
+        if (!string.IsNullOrWhiteSpace(e.Username))
+        {
+            isMine = string.Equals(e.Username, username, StringComparison.CurrentCultureIgnoreCase);
+        }
+        if (e.Parametro == "nuevo" || e.Parametro == "InicioSesion")
+        {
+            Grafica_Quorum();
+        }
+
+    }
+
+    private void TimerOnElapsed(object sender, ElapsedEventArgs e)
+    {
+        foreach (var cuestionario in Cuestionarios)
+        {
+            foreach (var p in cuestionario.Preguntas)
+            {
+                if (p.Tiempo > 0) p.Tiempo--;
+            }
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public string ConvertirTiempo(int t)
+    {
+        string tiempo = "" + t;
+        if (t > 59)
+        {
+            Int32 horas = (t / 3600);
+            Int32 minutos = ((t - horas * 3600) / 60);
+            Int32 segundos = t - (horas * 3600 + minutos * 60);
+            tiempo = (minutos < 10 ? "0" + minutos.ToString() : minutos.ToString()) + ":" + (segundos < 10 ? "0" + segundos.ToString() : segundos.ToString());
+            if (horas != 0) tiempo = horas.ToString() + ":" + tiempo;
+        }
+        return tiempo;
+    }
+
+    public void Dispose()
+    {
+        if (time != null)
+        {
+            time.Dispose();
+        }
+    }
+
+    async Task DisconnectAsync()
+    {
+        await cliente.StopAsync();
+        cliente = null;
+    }
+
+    class Message
+    {
+        public string Username { get; set; }
+        public string Parametro { get; set; }
+        public string Body { get; set; }
+        public bool Mine { get; set; }
+
+
+        public Message(string username, string parametro, string body, bool mine)
+        {
+            Username = username;
+            Body = body;
+            Parametro = parametro;
+            Mine = mine;
+        }
+
+    }
+
+}
+

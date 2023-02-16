@@ -1,0 +1,25 @@
+﻿@page "/logout"
+
+@layout LayoutResidente
+
+@using GESIIMO.Data;
+@using Microsoft.AspNetCore.Identity;
+@inject SignInManager<ApplicationUser> _signInManager
+
+<MudText Typo="Typo.h5"><b> Otro usuario ha iniciado sesión con su usuario, Recuerde que el enlace enviado es intrasferible </b></MudText>
+
+
+@code {
+    [CascadingParameter] protected Task<AuthenticationState> AuthStat { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var login = (await AuthStat).User;
+        if (login.Identity.IsAuthenticated)
+        {
+            await _signInManager.SignOutAsync();
+
+        }
+    }
+
+}

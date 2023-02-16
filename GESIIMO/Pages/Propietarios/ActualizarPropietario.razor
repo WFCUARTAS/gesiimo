@@ -1,0 +1,303 @@
+﻿@page "/ActualizarDatos/{ParametroUsuario}/{ParametroAsamblea}"
+@layout LayoutResidente
+
+@using GESIIMO.Data;
+@using GESIIMO.Model
+@using GESIIMO.Services
+@using Microsoft.AspNetCore.Identity;
+@using System.Text;
+@using Microsoft.AspNetCore.WebUtilities;
+
+
+@inject UserManager<ApplicationUser> _userManager
+@inject IDialogService dialogService
+@inject IAsambleaService asambleaService
+@inject IConjuntoService conjuntoService
+@inject IPropietarioService propietarioService
+@inject IAccesoAsambleaService accesoAsambleaService
+@inject IPoderService poderService
+
+@inject NavigationManager NavigationManager
+@inject SignInManager<ApplicationUser> _signInManager
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else if (Mensaje != null)
+{
+
+
+    <MudText Typo="Typo.h5"><b> @Mensaje </b></MudText>
+
+}
+
+else if (bienvenida)
+{
+    <style>
+
+        .personas {
+            width: 25%;
+            position: absolute;
+            bottom: 0px;
+            left: 40px;
+        }
+
+        .circulo {
+            width: 15%;
+            position: absolute;
+            right: 0px;
+            top: 20%;
+        }
+
+        .silueta {
+            width: 20%;
+            position: absolute;
+            right: 20%;
+            bottom: 0px;
+        }
+
+        .logo {
+            width: 70% !important;
+            right: 0;
+            padding-right: 0;
+            left: 10px;
+            margin-left: 15%;
+        }
+
+        body {
+            background-image: url(/Imagen/background_fondo.png);
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position-x: center;
+            background-position-y: 60px;
+            height: @(windowHeight+"px");
+        }
+
+
+        @@media (min-width: 601px) {
+            .boton {
+                margin-top: 20px;
+            }
+        }
+
+        @@media (max-width: 600px) {
+            .cont {
+                margin-top: 100px;
+            }
+        }
+    </style>
+
+    <img src="/Imagen/background_personas.png" class="personas">
+    <img src="/Imagen/background_circulo.png" class="circulo">
+    <img src="/Imagen/background_silueta.png" class="silueta">
+
+    <div align="center" style="vertical-align:central;">
+        <MudText class="cont" Typo="Typo.h5">Bienvenido <b> @(Propietario.Nombre+" "+Propietario.Apellido)</b></MudText>
+    </div>
+    <MudItem xs="12" sm="12" md="6">
+        <img src="/Imagen/background_logo.png" class="logo">
+    </MudItem>
+
+    <div align="center" style="vertical-align:central;">
+        <MudItem class="boton" xs="12" sm="12" md="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="continuar" DisableElevation="true" Size="Size.Large">Continuar</MudButton>
+        </MudItem>
+    </div>
+}
+else
+{
+    <MudText Typo="Typo.h5">Para el ingreso a la asamblea es necesario realizar la verificación y actualización de los siguientes datos:</MudText>
+    <MudDivider></MudDivider>
+    <MudContainer Style="padding-top: 15px;">
+        <EditForm Model="@Propietario" OnValidSubmit="OnValidSubmit">
+            <DataAnnotationsValidator />
+            <MudGrid>
+                <MudItem xs="12" sm="12" md="12">
+                    <MudTextField Label="Nombre" @bind-Value="Propietario.Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <ValidationMessage For="@(() => Propietario.Nombre)" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="12">
+                    <MudTextField Label="Apellido" @bind-Value="Propietario.Apellido" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <ValidationMessage For="@(() => Propietario.Apellido)" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="6">
+                    <MudTextField Disabled="true" Label="Email" @bind-Value="Propietario.Email" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <ValidationMessage For="@(() => Propietario.Email)" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="6">
+                    <MudTextField Label="Celular" @bind-Value="Propietario.Celular" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <ValidationMessage For="@(() => Propietario.Celular)" />
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="12" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Actualizar</MudButton>
+                </MudItem>
+
+            </MudGrid>
+        </EditForm>
+    </MudContainer>
+}
+
+@code {
+    [CascadingParameter] protected Task<AuthenticationState> AuthStat { get; set; }
+    [Parameter] public string ParametroUsuario { get; set; }
+    [Parameter] public string ParametroAsamblea { get; set; }
+
+    string IdUsuario;
+    string IdAsamblea;
+
+    private Propietario Propietario { get; set; }
+    private Asamblea asamblea { get; set; }
+    private AccesoAsamblea acceso = new AccesoAsamblea();
+
+    public int windowHeight = 600, windowWidth = 600;
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+    private bool bienvenida = true;
+    string Mensaje = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        GetDimension();
+        try
+        {
+            if (ParametroUsuario != null && ParametroAsamblea != null)
+            {
+                IdUsuario = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(ParametroUsuario));
+                IdAsamblea = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(ParametroAsamblea));
+
+                bool vali = await poderService.ValidarPoder(Convert.ToInt32(IdAsamblea), IdUsuario);
+
+                if (vali)
+                {
+                    Mensaje = "Usted le ha dado el poder a otra persona";
+                }
+                else
+                {
+                    ApplicationUser user = new ApplicationUser();
+                    user = await _userManager.FindByIdAsync(IdUsuario);
+
+                    var login = (await AuthStat).User;
+                    if (login.Identity.IsAuthenticated)
+                    {
+                        ApplicationUser us = new ApplicationUser();
+                        var autenticate = await AuthStat;
+                        string name = autenticate.User.Identity.Name;
+                        us = await _userManager.FindByNameAsync(name);
+
+                        if (us.Id != user.Id) await _signInManager.SignOutAsync();
+                    }
+                    if (!login.Identity.IsAuthenticated) await _signInManager.SignInAsync(user, false);
+
+                    asamblea = await asambleaService.GetAsamblea(Convert.ToInt32(IdAsamblea));
+
+                    if (asamblea != null)
+                    {
+                        var ac = await accesoAsambleaService.GetAccesoAsamblea(asamblea.IdAsamblea, user.Id);
+                        if (ac.Any())
+                        {
+                            NavigationManager.NavigateTo("/asamblea/" + ParametroAsamblea);
+                        }
+                        else
+                        {
+                            Propietario = await propietarioService.GetPropietarioUsuario(user.Id);
+                        }
+
+                        acceso.idAsamblea = asamblea.IdAsamblea;
+                        acceso.IdUsuario = user.Id;
+                        acceso.EstadoConexion = true;
+                    }
+                    else
+                    {
+                        Mensaje = "Ingrese nuevamente con en enlace enviado";
+                    }
+                }
+            }
+            else
+            {
+                Mensaje = "Ingrese nuevamente con en enlace enviado";
+            }
+
+            loading = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    public async Task continuar()
+    {
+        await ShowAceptarTerminos();
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            await propietarioService.SetPropietario(Propietario);
+            await accesoAsambleaService.SetAccesoAsamblea(acceso);
+            NavigationManager.NavigateTo("/asamblea/" + ParametroAsamblea);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    private async Task ShowAceptarTerminos()
+    {
+        var parameters = new DialogParameters();
+        try
+        {
+            var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+            var dialog = dialogService.Show<AceptarTerminosDialog>("Cargando...", parameters, options);
+            var result = await dialog.Result;
+
+            if (result.Cancelled)
+            {
+                acceso.TerminosCondiciones = false;
+            }
+            else
+            {
+                acceso.TerminosCondiciones = true;
+            }
+            bienvenida = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+
+    private async Task GetDimension()
+    {
+        var dimension = await JsRuntime.InvokeAsync<WindowDimensions>("getWindowSize", "");
+
+        windowHeight = dimension.Height-12;
+        windowWidth = dimension.Width;
+        StateHasChanged();
+
+    }
+
+    public class WindowDimensions
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+
+}

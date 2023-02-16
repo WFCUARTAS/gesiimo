@@ -1,0 +1,153 @@
+﻿@page "/asignacionapartamento/{IdPropietario:int}"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IAsignacionApartamentoService asignacionapartamentoService
+@inject IPropietarioService propietarioService
+
+@inject NavigationManager navigationManager
+@inject IDialogService dialogService
+
+@if (Propietario == null || AsignacionesApartamentos == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized Context="ct">
+            @if (@ct.User.IsInRole("administrador"))
+            {
+                <div class="d-flex flex-wrap justify-space-between">
+                    <MudText Typo="Typo.h5"><b>Asignación de apartamentos</b></MudText>
+                    <MudText Typo="Typo.h6" Class="mb-5"><b>Propietario: </b>@($"{Propietario.Nombre} {Propietario.Apellido}")</MudText>
+                </div>
+
+                if (!AsignacionesApartamentos.Any())
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AddCircle" OnClick="AddAsignacionApartamento">Agregar</MudButton>
+
+                    <div class="d-flex mt-5">
+                        <p><em>No se encontraron resultados.</em></p>
+                    </div>
+                }
+                else
+                {
+                    <MudTable Items="@AsignacionesApartamentos" Dense="true" Hover="true" Filter="new Func<AsignacionApartamento, bool>(FilterFunc)" Class="mt-3">
+                        <ToolBarContent>
+                            <MudToolBarSpacer />
+                            <MudItem xs="12" sm="12" md="3">
+                                <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                              AdornmentIcon="@Icons.Material.Filled.Search"
+                                              IconSize="Size.Medium" Variant="Variant.Outlined"
+                                              Margin="Margin.Dense">
+                                </MudTextField>
+                            </MudItem>
+                        </ToolBarContent>
+                        <HeaderContent>
+                            <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar asignación" Color="Color.Error" OnClick="AddAsignacionApartamento"></MudIconButton></MudTh>
+                            <MudTh>Conjunto</MudTh>
+                            <MudTh>Torre</MudTh>
+                            <MudTh>Apartamento</MudTh>
+                            <MudTh>Coeficiente</MudTh>
+                            <MudTh>Estado</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.Edit"  Title="Editar asignación"  Style="color: #63BEA9" OnClick="@(args => EditAsignacionApartamento(context))"></MudIconButton>
+                            </MudTd>
+                            <MudTd>@context.Conjunto</MudTd>
+                            <MudTd>@context.Torre</MudTd>
+                            <MudTd>@context.Apartamento</MudTd>
+                            <MudTd>@context.Coeficiente</MudTd>
+                            <MudSwitch Checked="@context.Estado" CheckedChanged="@((bool value) => CambiarEstado(context))" Color="Color.Success" />
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager DisableRowsPerPage="true" />
+                        </PagerContent>
+                    </MudTable>
+                }
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  Super administrador</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code {
+    [Parameter] public int IdPropietario { get; set; }
+
+    private IEnumerable<AsignacionApartamento> AsignacionesApartamentos { get; set; }
+    private Propietario Propietario { get; set; }
+    private string searchString = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Propietario = await propietarioService.GetPropietario(IdPropietario);
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        AsignacionesApartamentos = await asignacionapartamentoService.GetAsignacionApartamentos(IdPropietario);
+    }
+
+    private bool FilterFunc(AsignacionApartamento element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Conjunto.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (element.Apartamento.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddAsignacionApartamento()
+    {
+        await ShowAsignacionApartamentoForm(0, "ADD");
+    }
+
+    private async Task EditAsignacionApartamento(AsignacionApartamento data)
+    {
+        await ShowAsignacionApartamentoForm(data.IdApartamentoPropietario, "EDIT");
+    }
+
+    private async Task CambiarEstado(AsignacionApartamento data)
+    {
+        data.Estado = !data.Estado;
+        await asignacionapartamentoService.SetCambioEstado(data);
+        await UpdateGrid();
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task ShowAsignacionApartamentoForm(int idApartamentoPropietario, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(AsignacionApartamentoForm.IdApartamentoPropietario), idApartamentoPropietario);
+        parameters.Add(nameof(AsignacionApartamentoForm.IdPropietario), IdPropietario);
+        parameters.Add(nameof(AsignacionApartamentoForm.Accion), accion);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<AsignacionApartamentoForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+            //accepted = (bool)(result.Data ?? false);
+        }
+    }
+
+    #endregion
+}

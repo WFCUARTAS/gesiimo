@@ -1,0 +1,148 @@
+﻿@page "/PerfilUsuario"
+
+@using Microsoft.AspNetCore.Authorization;
+@using Microsoft.AspNetCore.Identity;
+@using GESIIMO.Data;
+
+@inject UserManager<GESIIMO.Data.ApplicationUser> _UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else
+{
+
+    <EditForm Model="@Usuario" OnValidSubmit="OnValidSubmit" >
+        <DataAnnotationsValidator />
+        <MudGrid>
+
+            <MudItem xs="12" sm="12" md="12">
+                <MudTextField Label="Nombre" @bind-Value="Usuario.NombrePersona" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ValidationMessage For="@(() => Usuario)" />
+            </MudItem>
+
+            <MudItem xs="12" sm="12" md="12">
+                <MudTextField Label="Apellido" @bind-Value="Usuario.ApellidosPersona" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ValidationMessage For="@(() => Usuario)" />
+            </MudItem>
+
+            <MudItem xs="12" sm="12" md="12">
+                <MudTextField Label="Telefono Celular" @bind-Value="Usuario.PhoneNumber" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ValidationMessage For="@(() => Usuario)" />
+            </MudItem>
+
+            <MudItem xs="12" sm="12" md="12">
+                <MudTextField Required="true" Label="Email" @bind-Value="Usuario.Email" Disabled="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ValidationMessage For="@(() => Usuario)" />
+            </MudItem>
+
+            <MudItem xs="12" sm="12" md="12">
+                <MudTextField @bind-Value="Role" Disabled="true" Label="Rol" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ValidationMessage For="@(() => Usuario)" />
+            </MudItem>
+
+            <MudItem xs="12" sm="12" md="6">
+                <MudTextField InputType="InputType.Password" O="clear(1)" Label="Contaseña" @bind-Value="Usuario.PasswordHash" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ValidationMessage For="@(() => Usuario)" />
+            </MudItem>
+
+
+        </MudGrid>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Success" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+
+    </EditForm>
+
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    ApplicationUser Usuario = new ApplicationUser();
+    ApplicationUser UsuarioSelect = new ApplicationUser();
+
+    private string Role;
+    List<string> Options = new List<string>() { "residente", "moderador", "administrador" };
+
+    private bool loading = true;
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var autenticate = await authenticationStateTask;
+        string name = autenticate.User.Identity.Name;
+
+        UsuarioSelect = await _UserManager.FindByNameAsync(name);
+
+
+        Usuario.NombrePersona = UsuarioSelect.NombrePersona;
+        Usuario.ApellidosPersona = UsuarioSelect.ApellidosPersona;
+        Usuario.Email = UsuarioSelect.Email;
+        Usuario.PhoneNumber = UsuarioSelect.PhoneNumber;
+        Usuario.PasswordHash = "*****";
+
+        foreach (var rol in Options)
+        {
+            var resul = await _UserManager.IsInRoleAsync(UsuarioSelect, rol);
+            if (resul)
+            {
+                Role = rol;
+            }
+        }
+
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+
+            //Editar un usuario
+            ApplicationUser user = new ApplicationUser();
+            user = await _UserManager.FindByIdAsync(UsuarioSelect.Id);
+            // Update Email
+            user.NombrePersona = Usuario.NombrePersona;
+            user.ApellidosPersona = Usuario.ApellidosPersona;
+            user.PhoneNumber = Usuario.PhoneNumber;
+
+            // Update the user
+            await _UserManager.UpdateAsync(user);
+            // Only update password if the current value
+            if (Usuario.PasswordHash != "*****")
+            {
+
+                var resetToken = await _UserManager.GeneratePasswordResetTokenAsync(user);
+                var passworduser = await _UserManager.ResetPasswordAsync(
+                        user,
+                        resetToken,
+                        Usuario.PasswordHash);
+                if (!passworduser.Succeeded)
+                {
+                    if (passworduser.Errors.FirstOrDefault() != null)
+                    {
+                        Snackbar.Add(passworduser.Errors.FirstOrDefault().Description, Severity.Error);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Error Contraseña", Severity.Error);
+                    }
+
+                }
+
+            }
+            Snackbar.Add("Usuario Actualizado", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+}

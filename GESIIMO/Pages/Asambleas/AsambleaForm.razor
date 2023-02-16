@@ -1,0 +1,300 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+@using GESIIMO.Services.Interfaces
+@using System.IO;
+
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment env
+@inject NavigationManager MyNavigationManager
+@inject IAsambleaService asambleaService
+@inject IConjuntoService conjuntoService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+@inject IEmailSender EmailSend
+
+<style>
+    .Cargando {
+        position: fixed;
+        border: 25px solid silver;
+        border-top: 25px solid #337AB7;
+        border-radius: 50%;
+        width: 100px;
+        height: 100px;
+        animation: spin 700ms linear infinite;
+        top: 50%;
+        left: 50%;
+        margin-top: -50px;
+        margin-left: -50px;
+    }
+
+    .Cargando_mensagge {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        margin-top: -70px;
+        margin-left: -150px;
+    }
+</style>
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@Asamblea" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-3 mr-4" Style="max-height: 100%;">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudContainer Style="max-height: 350px; overflow-y: scroll">
+
+                    <MudGrid>
+
+                        <MudItem xs="12" sm="12" md="12">
+
+                            <MudAutocomplete T="Lista" Label="Conjunto" @bind-Value="ConjuntoSelect" Disabled="(Asamblea.IdAsamblea==0? false : true )"
+                                             SearchFunc="@SearchConjunto" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion} ")" />
+
+                            <ValidationMessage For="@(() => Asamblea.IdConjunto)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudTextField Label="Descripcion" @bind-Value="Asamblea.Descripcion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <ValidationMessage For="@(() => Asamblea.Descripcion)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudTextField Label="URL Reunión" @bind-Value="Asamblea.UrlZoom" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <ValidationMessage For="@(() => Asamblea.UrlZoom)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="12" md="6">
+                            <MudDatePicker PickerVariant="PickerVariant.Dialog" PickerClosed="CambioFechaInicio" MinDate="@DateTime.Now.AddDays(-1)" Label="Fecha y Hora Inicio" DateFormat="dd/MM/yyyy" @bind-Date="@FechaInicio" />
+                            <MudTimePicker Label="Hora Inicio" TimeFormat="h:mm tt" AmPm="true" @bind-Time="@HoraInicio" />
+                            <ValidationMessage For="@(() => Asamblea.FechaInicio)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="12" md="6">
+                            <MudDatePicker PickerVariant="PickerVariant.Dialog" Required="false" PickerClosed="CambioFechaFin" MinDate="@MinFecha" Label="Fecha y Hora Finalizacion" DateFormat="dd/MM/yyyy" @bind-Date="@FechaFin" />
+                            <MudTimePicker Label="Hora Finalización" AmPm="true" Required="false" @bind-Time="@HoraFin" />
+                            <ValidationMessage For="@(() => Asamblea.FechaFin)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudTextField T="string" Label="Ordel del día" Variant="Variant.Outlined" @bind-Value="@Asamblea.OrdenDia" Lines="10" />
+                            <ValidationMessage For="@(() => Asamblea.OrdenDia)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="12" md="6">
+                            <MudCheckBox Label="Enviar mensaje masivo" @bind-Checked="Asamblea.EnvioMasivo" Color="Color.Secondary" CheckedIcon="@Icons.Material.Filled.Mail" UncheckedIcon="@Icons.Material.Filled.MailOutline"></MudCheckBox>
+                        </MudItem>
+
+                    </MudGrid>
+
+                </MudContainer>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@if (Cargando)
+{
+    <div class="Cargando"></div>
+    <div class="Cargando_mensagge"><h1>ENVIANDO CORREOS</h1></div>
+}
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdAsamblea { get; set; }
+    [Parameter] public int IdConjunto { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    public bool CheckBox1 { get; set; } = true;
+
+    private Asamblea Asamblea { get; set; }
+    private List<Lista> Conjuntos { get; set; }
+    private Lista ConjuntoSelect;
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+    public DateTime? FechaInicio { get; set; }
+    public DateTime? FechaFin { get; set; }
+
+    public DateTime MinFecha = DateTime.Now.AddDays(-1);
+
+    TimeSpan? HoraInicio = new TimeSpan(00, 00, 00);
+    TimeSpan? HoraFin = new TimeSpan(00, 00, 00);
+
+    private bool Cargando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Conjuntos = (await listaService.GetLista("Conjunto", null, null, null)).ToList();
+
+
+        if (IdAsamblea == 0)
+        {
+            MudDialog.SetTitle("Crear Asamblea");
+
+            Asamblea = new Asamblea
+            {
+                IdAsamblea = 0,
+                IdConjunto = IdConjunto,
+                FechaInicio = DateTime.MinValue,
+                FechaFin = DateTime.MinValue,
+                Estado = false,
+                FechaInicioReal = new DateTime(2000, 01, 01)
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Asamblea");
+            Asamblea = await asambleaService.GetAsamblea(IdAsamblea);
+            FechaInicio = Asamblea.FechaInicio;
+
+            HoraInicio = new TimeSpan(Asamblea.FechaInicio.Hour, Asamblea.FechaInicio.Minute, 00);
+            HoraFin = new TimeSpan(Asamblea.FechaFin.Hour, Asamblea.FechaFin.Minute, 00);
+
+            if (Asamblea.FechaFin == new DateTime(2000, 01, 01)) FechaFin = null;
+            else FechaFin = Asamblea.FechaFin;
+
+            ConjuntoSelect = Conjuntos.Where(e => e.Id == Asamblea.IdConjunto).FirstOrDefault();
+        }
+
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            TimeSpan Hora = HoraInicio.HasValue ? HoraInicio.Value : new TimeSpan(00, 00, 00); ;
+            Asamblea.FechaInicio = new DateTime(Asamblea.FechaInicio.Year, Asamblea.FechaInicio.Month, Asamblea.FechaInicio.Day);
+            Asamblea.FechaInicio = Asamblea.FechaInicio + Hora;
+
+            Hora = HoraFin.HasValue ? HoraFin.Value : new TimeSpan(00, 00, 00); ;
+            Asamblea.FechaFin = new DateTime(Asamblea.FechaFin.Year, Asamblea.FechaFin.Month, Asamblea.FechaFin.Day);
+            Asamblea.FechaFin = Asamblea.FechaFin + Hora;
+
+            Asamblea.IdConjunto = ConjuntoSelect.Id;
+
+            if (Asamblea.FechaFin.ToString("dd-MM-yyyy") == new DateTime().ToString("dd-MM-yyyy"))
+            {
+                Asamblea.FechaFin = new DateTime(2000, 01, 01);
+            }
+
+            if (Asamblea.IdAsamblea == 0)
+            {
+                Asamblea a = await asambleaService.SetNewAsamblea(Asamblea);
+                IEnumerable<Archivo> achivo = await asambleaService.BorrarDatos(Asamblea.IdConjunto);
+
+                foreach (var ac in achivo)
+                {
+                    var path = $"{env.WebRootPath}\\archivos\\{ac.RutaArchivo}";
+                    File.Delete(path);
+                }
+
+                if (a.EnvioMasivo)
+                {
+                    EnviarCoreo(a);
+                }
+                else
+                {
+                    MudDialog.Close(DialogResult.Ok(true));
+                }
+            }
+            else
+            {
+                await asambleaService.SetAsamblea(Asamblea);
+                if (Asamblea.EnvioMasivo)
+
+                {
+                    EnviarCoreo(Asamblea);
+                }
+                else
+                {
+                    MudDialog.Close(DialogResult.Ok(true));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            MudDialog.Close(DialogResult.Ok(false));
+            throw;
+        }
+    }
+
+    private async Task<IEnumerable<Lista>> SearchConjunto(string value)
+    {
+        IEnumerable<Lista> c = Conjuntos;
+        if (value != null) c = Conjuntos.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return c;
+    }
+
+    private async Task run()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
+    }
+
+    private async Task EnviarCoreo(Asamblea asamblea)
+    {
+        validated = true;
+        Cargando = true;
+        try
+        {
+            IEnumerable<EnvioCorreo> Propietarios = new List<EnvioCorreo>();
+            Propietarios = await conjuntoService.GetCorreos(asamblea);
+            Conjunto conjunto = await conjuntoService.GetConjunto(asamblea.IdConjunto);
+            await EmailSend.CitacionMasiva(Propietarios, asamblea, conjunto, MyNavigationManager.BaseUri);
+            Snackbar.Add("Correos enviados ", Severity.Success);
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+        Cargando = false;
+        MudDialog.Close(DialogResult.Ok(true));
+
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task CambioFechaInicio()
+    {
+        Asamblea.FechaInicio = FechaInicio.HasValue ? FechaInicio.Value : DateTime.MinValue;
+        MinFecha = FechaInicio.HasValue ? FechaInicio.Value : DateTime.Now.AddDays(-1);
+
+    }
+
+    private async Task CambioFechaFin()
+    {
+        Asamblea.FechaFin = FechaFin.HasValue ? FechaFin.Value : DateTime.MinValue;
+
+    }
+
+}

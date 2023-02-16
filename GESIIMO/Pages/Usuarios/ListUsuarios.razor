@@ -1,0 +1,142 @@
+﻿@page "/ListUsuarios"
+@using Microsoft.AspNetCore.Authorization;
+@using Microsoft.AspNetCore.Identity;
+@using GESIIMO.Data;
+
+@inject UserManager<ApplicationUser> _UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDialogService dialogService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    
+    <AuthorizeView>
+        <Authorized>
+            @if (@context.User.IsInRole(ADMINISTRATION_ROLE))
+            {
+                <MudText Typo="Typo.h5"><b>Administrar usuarios</b></MudText>
+
+                <MudTable Items="@ColUsers" Context="usuarios" Dense="true" Hover="true" Class="mt-3">
+                    <HeaderContent>
+                        <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar" Color="Color.Error" OnClick="AddNewUser"></MudIconButton></MudTh>
+                        <MudTh>Nombres</MudTh>
+                        <MudTh>Apellidos</MudTh>
+                        <MudTh>Usuario</MudTh>
+                        <MudTh>Teléfono celular</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Editar"  Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EditUser(usuarios))"></MudIconButton></MudTd>
+                        <MudTd DataLabel="NombrePersona">@usuarios.NombrePersona</MudTd>
+                        <MudTd DataLabel="ApellidosPersona">@usuarios.ApellidosPersona</MudTd>
+                        <MudTd DataLabel="UserName">@usuarios.UserName</MudTd>
+                        <MudTd DataLabel="PhoneNumber">@usuarios.PhoneNumber</MudTd>
+                        <MudTd><MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(args => DeleteUser(usuarios))" Style="color: #EC616A" Size="Size.Large"></MudIconButton></MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager />
+                    </PagerContent>
+                </MudTable>
+
+
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  @ADMINISTRATION_ROLE.</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+
+}
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    string ADMINISTRATION_ROLE = "administrador";
+    System.Security.Claims.ClaimsPrincipal CurrentUser;
+
+
+    // Colección para mostrar los usuarios existentes
+    IEnumerable<ApplicationUser> ColUsers = new List<ApplicationUser>();
+    IEnumerable<ApplicationUser> ColUsersAdmin = new List<ApplicationUser>();
+    IEnumerable<ApplicationUser> ColUsersMod = new List<ApplicationUser>();
+
+    bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetUsers();
+        loading = false;
+    }
+
+    private async Task UpdateGrid()
+    {
+        // Obtener el usuario que ha iniciado sesión actualmente
+        CurrentUser = (await authenticationStateTask).User;
+    }
+
+
+    private async Task AddNewUser()
+    {
+
+        ApplicationUser us = new ApplicationUser();
+        us.Id = null;
+        await ShowUsuarioForm(us);
+    }
+
+    async Task EditUser(ApplicationUser _IdentityUser)
+    {
+        var us = await _UserManager.FindByIdAsync(_IdentityUser.Id);
+        await ShowUsuarioForm(us);
+    }
+
+    private async Task ShowUsuarioForm(ApplicationUser user)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(UsuarioForm.UsuarioSelect), user);
+
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<UsuarioForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await GetUsers();
+        }
+    }
+
+
+    async Task DeleteUser(ApplicationUser User)
+    {
+        var us = await _UserManager.FindByIdAsync(User.Id);
+        // Delete the user
+        var del = await _UserManager.DeleteAsync(us);
+        if (!del.Succeeded)
+        {
+            Snackbar.Add("" + del, Severity.Error);
+        }
+        await GetUsers();
+    }
+
+    public async Task GetUsers()
+    {
+     
+
+        ColUsersMod = await _UserManager.GetUsersInRoleAsync("moderador");
+        ColUsersAdmin = await _UserManager.GetUsersInRoleAsync("administrador");
+
+        ColUsers = ColUsersMod.Union(ColUsersAdmin);
+
+    }
+
+}

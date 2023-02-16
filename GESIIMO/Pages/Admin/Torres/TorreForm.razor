@@ -1,0 +1,75 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject ITorreService torreService
+
+@if (visible)
+{
+    <EditForm Model="@torre" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <ModalLayout>
+            <Header>
+                <div id="modalLabel" class="h5 modal-title font-weight-bold">@title</div>
+                <button @onclick="OnCancel" type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </Header>
+            <Body>
+                <div class="row">
+                    <div class="form-group col-12 col-sm-12 col-md-6 col-lg-7">
+                        <RadzenLabel Text="Nombre" />
+                        <RadzenTextBox @bind-Value="@torre.Descripcion" class="w-100" />
+                        <ValidationMessage For="@(() => torre.Descripcion)" />
+                    </div>
+                </div>
+
+                @*<RadzenNotification />*@
+            </Body>
+            <Footer>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" ButtonType="ButtonType.Button" Click="OnCancel">Cancelar</RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Success" ButtonType="ButtonType.Submit">Guardar</RadzenButton>
+            </Footer>
+        </ModalLayout>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public int IdConjunto { get; set; }
+
+    Torre torre = new Torre();
+    bool visible = false;
+    string title;
+
+    public async Task Show(int idTorre)
+    {
+        if (idTorre == 0)
+        {
+            title = "Crear Torre";
+            torre = new Torre() {
+                IdConjunto = IdConjunto,
+                Estado = true
+            };
+        }
+        else
+        {
+            title = "Editar Torre";
+            torre = await torreService.GetTorre(idTorre);
+        }
+
+        visible = true;
+    }
+
+    public void Hide()
+    {
+        visible = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        await torreService.SetTorre(torre);
+        await OnSaved.InvokeAsync();
+        visible = false;
+    }
+}

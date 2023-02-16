@@ -1,0 +1,81 @@
+﻿@inherits LayoutComponentBase
+
+@using Microsoft.AspNetCore.Identity
+@using GESIIMO.Data;
+
+<style>
+    .Cargando_spin {
+        position: fixed;
+        border: 25px solid silver;
+        border-top: 25px solid #337AB7;
+        border-radius: 50%;
+        width: 100px;
+        height: 100px;
+        animation: spin 700ms linear infinite;
+        top: 50%;
+        left: 50%;
+        margin-top: -50px;
+        margin-left: -50px;
+    }
+
+    .Cargando_texto {
+        position: fixed;
+        width: 100px;
+        height: 100px;
+        top: 50%;
+        left: 50%;
+        margin-top: 70px;
+        margin-left: -50px;
+    }
+</style>
+
+<div id="components-reconnect-modal">
+    <div class="Cargando_spin"></div>
+    <div class="Cargando_texto">
+        <h4>Reconectando</h4>
+    </div>
+</div>
+
+<MudLayout>
+    <MudAppBar Style="height:60px; background-color: #252F64" Elevation="1" Dense="true">
+
+
+        <div align="left" style="height: 100%;">
+            <img src="Imagen/Logo_blanco.png" style="height: 100%; padding-top: 5px;" alt="Respoder Virtual" />
+        </div>
+        <MudSpacer />
+
+        <AuthorizeView>
+            <Authorized>
+                <form method="post" action="Identity/Account/LogOut">
+                    <strong><button style="color:white " type="submit" class="nav-link btn btn-link"><b>Cerrar sesión</b></button></strong>
+                </form>
+            </Authorized>
+        </AuthorizeView>
+
+    </MudAppBar>
+
+    <MudMainContent Class="mt-3">
+        <MudContainer>
+            @Body
+
+        </MudContainer>
+    </MudMainContent>
+
+    <footer style="width: 100vw; z-index: 1500; position: fixed; height: 40px; bottom: 0; background-color: gainsboro">
+        &copy; 2021 - Responder Virtual
+
+        <MudIconButton Icon="@Icons.Custom.Brands.Facebook" Color="Color.Inherit" Target="_blank" Link="https://www.facebook.com/CorporacionResponder/" />
+        <MudIconButton Icon="@Icons.Custom.Brands.Twitter" Color="Color.Inherit" Target="_blank" Link="https://twitter.com/respondercorp?lang=es" />
+        <MudIconButton Icon="@Icons.Custom.Brands.Instagram" Color="Color.Inherit" Target="_blank" Link="https://www.instagram.com/corporacionresponder/" />
+
+    </footer>
+
+</MudLayout>
+
+
+@code {
+
+}
+
+

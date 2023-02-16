@@ -1,0 +1,145 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IConjuntoService conjuntoService
+@inject IListaService listaService
+
+@if (visible)
+{
+    <EditForm Model="@conjunto" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <ModalLayout>
+            <Header>
+                <div id="modalLabel" class="h5 modal-title font-weight-bold">@title</div>
+                <button @onclick="OnCancel" type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </Header>
+            <Body>
+                <div class="row">
+                    <div class="form-group col-12 col-sm-12 col-md-6 col-lg-6">
+                        <RadzenLabel Text="Departamento" />
+                        <RadzenDropDown @bind-Value="conjunto.IdDepartamento"
+                                        TValue="int" Data="@departamentos"
+                                        TextProperty="Descripcion" ValueProperty="Id"
+                                        Placeholder="Seleccione..."
+                                        Change="@(args => Departamento_OnChange(conjunto.IdDepartamento))"
+                                        class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.IdDepartamento)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-6 col-lg-6">
+                        <RadzenLabel Text="Ciudad" />
+                        <RadzenDropDown @bind-Value="conjunto.IdCiudad"
+                                        TValue="int" Data="@ciudades"
+                                        TextProperty="Descripcion" ValueProperty="Id"
+                                        Placeholder="Seleccione..."
+                                        class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.IdCiudad)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-12 col-lg-12">
+                        <RadzenLabel Text="Nombre" />
+                        <RadzenTextBox @bind-Value="@conjunto.Nombre" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Nombre)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-12 col-lg-12">
+                        <RadzenLabel Text="Direccion" />
+                        <RadzenTextBox @bind-Value="@conjunto.Direccion" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Direccion)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-6 col-lg-6">
+                        <RadzenLabel Text="Telefono" />
+                        <RadzenTextBox @bind-Value="@conjunto.Telefono" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Telefono)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-6 col-lg-6">
+                        <RadzenLabel Text="Celular" />
+                        <RadzenTextBox @bind-Value="@conjunto.Celular" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Celular)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-12 col-lg-12">
+                        <RadzenLabel Text="Email" />
+                        <RadzenTextBox @bind-Value="@conjunto.Email" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Email)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-12 col-lg-12">
+                        <RadzenLabel Text="Administrador" />
+                        <RadzenTextBox @bind-Value="@conjunto.Administrador" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Administrador)" />
+                    </div>
+
+                    <div class="form-group col-12 col-sm-12 col-md-12 col-lg-12">
+                        <RadzenLabel Text="Logo" />
+                        <RadzenTextBox @bind-Value="@conjunto.Logo" class="w-100" />
+                        <ValidationMessage For="@(() => conjunto.Logo)" />
+                    </div>
+                </div>
+
+                @*<RadzenNotification />*@
+            </Body>
+            <Footer>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" ButtonType="ButtonType.Button" Click="OnCancel">Cancelar</RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Success" ButtonType="ButtonType.Submit">Guardar</RadzenButton>
+            </Footer>
+        </ModalLayout>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private Conjunto conjunto = new Conjunto();
+    private IEnumerable<Lista> ciudades;
+    private IEnumerable<Lista> departamentos;
+
+    bool visible = false;
+    string title;
+
+    protected override async Task OnInitializedAsync()
+    {
+        departamentos = await listaService.GetLista("Departamento", null, null);
+    }
+
+    public async Task Show(int idConjunto)
+    {
+        if (idConjunto == 0)
+        {
+            title = "Crear Conjunto";
+            conjunto = new Conjunto()
+            {
+                Estado = true
+            };
+        }
+        else
+        {
+            title = "Editar Conjunto";
+            conjunto = await conjuntoService.GetConjunto(idConjunto);
+        }
+
+        visible = true;
+    }
+
+    public void Hide()
+    {
+        visible = false;
+    }
+
+    public async Task Departamento_OnChange(int idDepartamento)
+    {
+        ciudades = await listaService.GetLista("Ciudad", idDepartamento, null);
+    }
+
+    private async Task OnValidSubmit()
+    {
+        await conjuntoService.SetConjunto(conjunto);
+        await OnSaved.InvokeAsync();
+        visible = false;
+    }
+}

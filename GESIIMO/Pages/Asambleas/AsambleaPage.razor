@@ -1,0 +1,891 @@
+﻿@page "/asamblea"
+@page "/asamblea/{ParametroAsamblea}"
+@page "/invitado/{AsambleaInvitado}"
+@layout LayoutResidente
+
+@using GESIIMO.Data;
+@using Microsoft.AspNetCore.Identity;
+@using System.Text;
+@using Microsoft.AspNetCore.WebUtilities;
+@using GESIIMO.Model;
+@using GESIIMO.Services;
+
+@using ChartJs.Blazor.PieChart
+@using ChartJs.Blazor;
+@using ChartJs.Blazor.Util
+@using ChartJs.Blazor.BarChart
+@using System.Timers
+
+
+@inject NavigationManager NavigationManager
+@inject SignInManager<ApplicationUser> _signInManager
+@inject UserManager<ApplicationUser> _userManager
+@inject IAsambleaService asambleaService
+@inject IConjuntoService conjuntoService
+@inject IPropietarioService propietarioService
+@inject ICuestionarioService cuestionarioService
+@inject IPreguntaService preguntaService
+@inject IOpcionPreguntaService OpcionService
+@inject IAccesoAsambleaService accesoAsambleaService
+@inject IRespuestaService respuestaService
+@inject IArchivoService archivoService
+@inject IConfiguracionService configuracionService
+@inject ISnackbar Snackbar
+@inject IJSRuntime _jsRuntime
+@inject IDialogService dialogService
+
+
+@implements IDisposable
+
+<audio id="roar" src="../sonido/Alert.mp3" />
+<style>
+    .mud-container-maxwidth-lg {
+        max-width: none !important;
+    }
+</style>
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else if (!loginOK)
+{
+    <MudText Typo="Typo.h5"><b> @Mensaje </b></MudText>
+}
+else
+{
+    <MudGrid Spacing="2" Class="mb-10 ">
+        <MudItem xs="12" sm="12" md="4">
+            <MudPaper Style="background-color: #C9CAD370" Class="pa-4 ma-2" Elevation="3">
+                <MudItem xs="12" sm="12" md="12" Class="d-flex justify-center">
+                    <img src="logos/@conjunto.Logo" width="150px" height="150px" />
+                </MudItem>
+
+                <MudDivider Class="my-3" />
+
+                <MudItem xs="12" sm="12" md="12">
+                    @if (AsambleaInvitado == null)
+                    {
+                        <MudText>@propietario.Nombre  @propietario.Apellido </MudText>
+                    }
+                    <MudText><b>Asamblea:</b>  @asamblea.Descripcion </MudText>
+                    <MudText><b>Fecha Inicio:</b>  @asamblea.FechaInicio </MudText>
+                    <MudText>
+                        Clic aquí para unirse a la reunión:
+                        <MudIconButton Link="@asamblea.UrlZoom" Target="_blank" Icon="@Icons.Material.Filled.PermCameraMic" Style="color:#252F64" Size="Size.Large"></MudIconButton>
+                    </MudText>
+                    @if (OrdenDia != null)
+                    {
+                        <MudText><b> Orden del día:</b></MudText>
+                        @foreach (var t in OrdenDia)
+                        {
+                            <p><MudText Typo="Typo .caption"> @t</MudText></p>
+                        }
+                    }
+
+                </MudItem>
+            </MudPaper>
+        </MudItem>
+
+
+        <MudItem xs="12" sm="12" md="8">
+            <MudTabs Elevation="4" Rounded="true" ApplyEffectsToContainer="true" Centered="true" PanelClass="pa-6" @ref="tabs">
+                @if (AsambleaInvitado == null)
+                {
+                    <MudTabPanel Style="@coloresTap[0]" Text="Votar" @ref="panel01" OnClick="@(args => CargarPanel(1))" Icon="@Icons.Material.Filled.FactCheck">
+                        @if (!PreguntasActivas.Any())
+                        {
+                            <MudText>Espacio para preguntas</MudText>
+                        }
+                        else
+                        {
+                            foreach (var pregunta in PreguntasActivas)
+                            {
+                                <MudText Typo="Typo.h5"><b> @pregunta.PreguntaDescripcion </b></MudText>
+                                <MudText Typo="Typo.body1"><b>Tipo de pregunta: </b> @pregunta.DescripcionTipoPregunta </MudText>
+                                @if (pregunta.TipoPregunta == 3)
+                                {
+                                    <MudText Typo="Typo.body1"><b>Cantidad a selecionar: </b> @pregunta.NRespuesta</MudText>
+                                }
+
+                                @if (pregunta.TipoPregunta == 1)
+                                {
+                                    <MudRadioGroup @bind-SelectedOption="@pregunta.OpcionSeleccionada">
+                                        @foreach (var item in pregunta.Opciones)
+                                                            {
+                                            <MudItem>
+                                                <MudRadio Option="@item.IdOpcionpregunta" Disabled="(pregunta.EstadoRespuesta || pregunta.Tiempo <= 0)" Color="Color.Primary">@item.Opcion</MudRadio>
+                                            </MudItem>
+                                                            }
+                                    </MudRadioGroup>
+                                }
+                                else
+                                {
+                                    @foreach (var item in pregunta.Opciones)
+                                    {
+                                        <MudItem>
+                                            <MudCheckBox Checked="@item.Estado" CheckedChanged="@((bool value) => ValidarNRespuestas(value, pregunta, item))" Disabled="(pregunta.EstadoRespuesta || pregunta.Tiempo <= 0)" Label="@item.Opcion" Color="Color.Primary"></MudCheckBox>
+                                        </MudItem>
+                                    }
+
+                                }
+
+                                <MudItem xs="12" sm="12" md="12" Class="d-flex justify-end">
+                                    @if (pregunta.EstadoRespuesta)
+                                    {
+                                        <MudText Color="Color.Default" Typo="Typo.h5"> ¡Respuesta enviada!  </MudText>
+                                    }
+                                    else if (pregunta.Tiempo > 0)
+                                    {
+                                        <MudText Color="Color.Info" Typo="Typo.h4"><b>@ConvertirTiempo(pregunta.Tiempo)</b></MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Color="Color.Default" Typo="Typo.h5"> ¡Tiempo Agotado!  </MudText>
+                                    }
+                                    <MudItem xs="12" sm="12" md="1"></MudItem>
+                                    <MudButton Icon="@Icons.Filled.Send" OnClick="@(args => GuardarRespuesta(pregunta))" Disabled="(pregunta.EstadoRespuesta || pregunta.Tiempo <= 0)" Color="Color.Primary" Variant="Variant.Filled">Enviar</MudButton>
+                                </MudItem>
+                                <MudDivider Class="my-3" />
+                            }
+                        }
+                    </MudTabPanel>
+                }
+                <MudTabPanel Style="@coloresTap[1]" OnClick="@(args => CargarPanel(2))" @ref="panel02" Text="Histórico de votos" Icon="@Icons.Material.Filled.Poll">
+                    <MudItem xs="12" sm="12" md="12" Class="d-flex justify-end">
+                        <MudButton Icon="@Icons.Filled.Send" OnClick="@(args => GraficarResultado(PreguntaSelect))" Color="Color.Success" Variant="Variant.Filled">Recargar</MudButton>
+                    </MudItem>
+
+                    @foreach (var group in votacion)
+                    {
+                        @if (group.First().IdPregunta == PreguntaSelect)
+                        {
+
+                            @if (group.First().TipoGrafica == 5)
+                            {
+                                <Chart Width="100" Height="@TamGrafica" Config="group.First().config_torta"></Chart>
+
+                            }
+                            else
+                            {
+                                <Chart Width="100" Height="@TamGrafica" Config="group.First().config_barras"></Chart>
+                            }
+
+                            <MudItem xs="12" sm="12" md="12">
+                                <MudGrid Spacing="1" Justify="Justify.Center">
+                                    @foreach (var voto in group)
+                                    {
+                                        <MudItem>
+                                            <MudPaper Elevation="3" Style="padding:10px;">
+                                                <MudText Typo="Typo.h5">@voto.Opcion</MudText>
+                                                <MudText> @voto.Coeficiente %  Cantidad: @voto.Cantidad</MudText>
+
+                                            </MudPaper>
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            </MudItem>
+                            <MudDivider Class="my-3" />
+                        }
+                    }
+
+                    @foreach (var group in votacion)
+                    {
+                        <MudContainer>
+                            <MudFab OnClick="@(args => GraficarResultado(group.First().IdPregunta))" Style="@($" color:{Colors.Shades.White}; background:{group.First().color};")" Icon="@Icons.Material.Filled.LabelImportant" Size="Size.Medium" IconSize="Size.Medium" Label="@group.First().Pregunta" Class="ma-2" />
+                        </MudContainer>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Style="@coloresTap[2]" Text="Quórum" OnClick="@(args => CargarPanel(3))" Icon="@Icons.Material.Filled.Groups">
+                    <MudItem xs="12" sm="12" md="12" Class="d-flex justify-end">
+                        <MudButton Icon="@Icons.Filled.Send" OnClick="@(args => Grafica_Quorum(false))" Color="Color.Success" Variant="Variant.Filled">Recargar</MudButton>
+                    </MudItem>
+                    <Chart Width="100" Height="@TamGrafica" Config="GraficaQuorum.config_torta"></Chart>
+                    <MudItem Style="padding-top: 20px;" xs="12" sm="12" md="12">
+                        <MudGrid Spacing="1" Justify="Justify.Center">
+                            @foreach (var q in quorum)
+                            {
+                                <MudItem>
+                                    <MudPaper Elevation="3" Style="padding:10px;">
+                                        <MudText Align="Align.Center" Typo="Typo.h6">@q.Descripcion </MudText>
+                                        <MudText Align="Align.Center"> @q.ValorQuorum %  </MudText>
+                                        <MudText Align="Align.Center"> Cantidad: @q.Cantidad  </MudText>
+                                    </MudPaper>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudItem>
+                </MudTabPanel>
+
+                <MudTabPanel Style="@coloresTap[3]" Text="Archivos" OnClick="@(args => CargarPanel(4))" Icon="@Icons.Material.Filled.FilePresent">
+                    <MudTable Items="@archivos" Dense="true" Hover="true" Filter="new Func<Archivo, bool>(FilterFunc)" xs="12" sm="12" md="12">
+                        <ToolBarContent>
+                            <MudToolBarSpacer />
+                            <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+                        </ToolBarContent>
+
+                        <HeaderContent>
+                            <MudTh>Nombre</MudTh>
+                            <MudTh>Ver</MudTh>
+                            <MudTh>Descargar</MudTh>
+
+                        </HeaderContent>
+                        <RowTemplate>
+
+                            <MudTd DataLabel="Nombre">@context.NombreArchivo</MudTd>
+                            <MudTd><MudIconButton OnClick="@(args => ShowArchivo(context))" Disabled="(!context.RutaArchivo.EndsWith(extencion))" Style="color: #FBB818" Icon="@Icons.Material.Filled.RemoveRedEye" Size="Size.Medium"></MudIconButton></MudTd>
+                            <MudTd><MudIconButton Link="@url(context.RutaArchivo)" Target="_blank" Icon="@Icons.Material.Filled.AttachFile" Style="color: #FBB818" Size="Size.Medium"></MudIconButton></MudTd>
+
+                        </RowTemplate>
+
+                    </MudTable>
+                </MudTabPanel>
+            </MudTabs>
+
+        </MudItem>
+
+    </MudGrid>
+}
+
+@code {
+    [CascadingParameter] protected Task<AuthenticationState> AuthStat { get; set; }
+    [Parameter] public string ParametroAsamblea { get; set; }
+    [Parameter] public string AsambleaInvitado { get; set; }
+
+    string IdUsuario;
+    string IdAsamblea;
+    string Mensaje = "";
+    string extencion = "pdf";
+
+
+    private string searchString = "";
+
+    public string SelectedOption { get; set; }
+
+    MudTabs tabs;
+    MudTabPanel panel01;
+    MudTabPanel panel02;
+    int panel = 1;
+
+    Timer time;
+    int TiempoPreguntas;
+    private Configuracion configuracionTiempo { get; set; }
+
+    Boolean loginOK = false;
+    bool loading = true;
+    bool EnvioMensage = false;
+    string[] OrdenDia;
+
+    private Asamblea asamblea { get; set; }
+    private Conjunto conjunto { get; set; }
+    private Propietario propietario { get; set; }
+    private AccesoAsamblea accesoAsamblea { get; set; }
+    private IEnumerable<Archivo> archivos { get; set; }
+
+    private IEnumerable<Pregunta> Preguntas { get; set; }
+    private IEnumerable<Cuestionario> Cuestionarios { get; set; }
+    private List<Pregunta> PreguntasActivas = new List<Pregunta>();
+
+    private IEnumerable<IGrouping<int, Votacion>> votacion = new List<IGrouping<int, Votacion>>();
+    private int PreguntaSelect = 0;
+
+    /// Datos para la grafica
+    Votacion GraficaQuorum = new Votacion();
+    IEnumerable<Quorum> quorum = new List<Quorum>();
+    int TamGrafica = 50;
+
+    ///   PARA ENVIO SINCRONICO DE INFORMACION A LOS USUARIOS/////////
+    string username = null;
+    string grupo = null;
+    ChatClient cliente = null;
+
+    List<Message> messages = new List<Message>();
+
+    List<string> colores = new List<string>() { "#FBB818", "#63BEA9", "#CDD618", "#EC616A", "#252F64", "#1EA7DB" };
+
+    List<string> coloresTapSelect = new List<string>() { "color: #FBB818; background-color: #FBB81860;", "color: #63BEA9; background-color: #63BEA960;", "color: #CDD618; background-color: #CDD61860;", "color: #252F64; background-color: #252F6460;" };
+    List<string> coloresTap = new List<string>() { "color: #FBB818; background-color: #FBB81860;", "", "", "" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var login = (await AuthStat).User;
+            if ((login.Identity.IsAuthenticated && ParametroAsamblea != null) || AsambleaInvitado != null)
+            {
+                IEnumerable<AccesoAsamblea> ac = new List<AccesoAsamblea>();
+                if (AsambleaInvitado == null)
+                {
+                    ApplicationUser user = new ApplicationUser();
+                    var autenticate = await AuthStat;
+                    string name = autenticate.User.Identity.Name;
+                    user = await _userManager.FindByNameAsync(name);
+                    IdUsuario = user.Id;
+
+                    IdAsamblea = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(ParametroAsamblea));
+
+                    ac = await accesoAsambleaService.GetAccesoAsamblea(Convert.ToInt32(IdAsamblea), IdUsuario);
+                }
+                else
+                {
+                    IdAsamblea = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(AsambleaInvitado));
+                }
+
+
+                asamblea = await asambleaService.GetAsamblea(Convert.ToInt32(IdAsamblea));
+
+
+                if (asamblea.Estado)
+                {
+
+                    if (ac.Any() || AsambleaInvitado != null)
+                    {
+                        if (asamblea.OrdenDia != null) OrdenDia = asamblea.OrdenDia.Split("\n");
+
+                        conjunto = await conjuntoService.GetConjunto(asamblea.IdConjunto);
+
+                        if (conjunto.Logo == null) conjunto.Logo = "default.png";
+
+                        archivos = await archivoService.GetArchivos(asamblea.IdAsamblea);
+
+                        if (AsambleaInvitado == null)
+                        {
+                            configuracionTiempo = await configuracionService.GetConfiguracion("TiempoPregunta");
+                            TiempoPreguntas = Convert.ToInt32(configuracionTiempo.Parametro);
+
+                            propietario = await propietarioService.GetPropietarioUsuario(IdUsuario);
+
+                            accesoAsamblea = ac.First();
+                            accesoAsamblea.EstadoConexion = true;
+                            await accesoAsambleaService.UpdateConexion(accesoAsamblea);
+
+                            await CargarPreguntas();
+
+                            time = new Timer();
+                            time.Interval = 1000;
+                            time.Elapsed += TimerOnElapsed;
+                            time.Start();
+                        }
+                        else
+                        {
+                            await CargarPanel(2);
+                        }
+
+                        loginOK = true;
+                    }
+                    else
+                    {
+                        Mensaje = "Por favor ingrese nuevamente con en enlace enviado";
+                    }
+                }
+                else if (asamblea.FechaInicioReal == new DateTime(2000, 01, 01))
+                {
+                    Mensaje = "Gracias por su espera en breve daremos inicio a la asamblea";
+                    await Starchat();
+                }
+                else
+                {
+                    Mensaje = "Gracias por su asistencia, la asamblea ha finalizado";
+                }
+
+            }
+            else
+            {
+                Mensaje = "Ingrese nuevamente con en enlace enviado";
+            }
+            loading = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender && loginOK && cliente == null)
+        {
+            if (AsambleaInvitado == null)
+            {
+                await Starchat();
+            }
+
+            var dimension = await _jsRuntime.InvokeAsync<WindowDimensions>("getWindowSize", "");
+            if (dimension.Width < 600) TamGrafica = 100;
+        }
+    }
+
+    private async Task ShowArchivo(Archivo a)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(ArchivoDialog.url), url(a.RutaArchivo));
+
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<ArchivoDialog>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+
+        }
+    }
+
+    async Task GraficarResultado(int select)
+    {
+        PreguntaSelect = select;
+        int cont = 0;
+
+        votacion = new List<IGrouping<int, Votacion>>();
+        IEnumerable<Votacion> voto = new List<Votacion>();
+        voto = await respuestaService.GetVotacion(asamblea.IdAsamblea);
+        votacion = from item in voto group item by item.IdPregunta;
+
+        foreach (var group in votacion)
+        {
+            if (PreguntaSelect == 0) PreguntaSelect = group.First().IdPregunta;
+
+            if (group.First().TipoGrafica == 5) Grafica_torta(group);
+            else Grafica_barras(group);
+
+            group.First().color = colores[cont];
+            cont++;
+            if (colores.Count == cont) cont = 0;
+        }
+    }
+
+    async Task Grafica_Quorum(bool reload)
+    {
+        Random aleatorio = new Random();
+
+        if (reload) GraficaQuorum = new Votacion();
+        GraficaQuorum.config_torta.Data.Labels.Clear();
+        GraficaQuorum.config_torta.Data.Datasets.Clear();
+        GraficaQuorum.config_torta.Options.Title.Text = "QUÓRUM";
+
+        quorum = await asambleaService.GetQuorum(asamblea.IdAsamblea);
+
+        string[] l = quorum.Select(q => q.Descripcion).ToArray();
+        IEnumerable<double> data = quorum.Select(q => q.ValorQuorum).ToArray();
+
+        string[] colores = new string[l.Length];
+
+        int cont = 0;
+        foreach (var opcion in quorum)
+        {
+            Byte r = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte g = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte b = Convert.ToByte(aleatorio.Next(30, 255));
+
+            GraficaQuorum.config_torta.Data.Labels.Add(opcion.Descripcion);
+            colores[cont] = ColorUtil.ColorString(r, g, b, 0.7);
+            cont++;
+        }
+
+        PieDataset<double> dataset = new PieDataset<double>(data)
+        {
+            BackgroundColor = colores
+        };
+
+        GraficaQuorum.config_torta.Data.Datasets.Add(dataset);
+
+    }
+
+    private void Grafica_torta(IEnumerable<Votacion> votos)
+    {
+        Random aleatorio = new Random();
+
+        Votacion v = votos.First();
+        v.config_torta.Data.Labels.Clear();
+        v.config_torta.Data.Datasets.Clear();
+        v.config_torta.Options.Title.Text = v.Pregunta;
+
+        string[] l = votos.Select(pkg => pkg.Opcion).ToArray();
+        IEnumerable<double> data = votos.Select(pkg => pkg.Coeficiente).ToArray();
+
+        string[] colores = new string[l.Length];
+
+        int cont = 0;
+        foreach (var opcion in votos)
+        {
+            Byte r = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte g = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte b = Convert.ToByte(aleatorio.Next(30, 255));
+
+            v.config_torta.Data.Labels.Add(opcion.Opcion);
+            colores[cont] = ColorUtil.ColorString(r, g, b, 0.7);
+            cont++;
+        }
+
+        PieDataset<double> dataset = new PieDataset<double>(data)
+        {
+            BackgroundColor = colores
+        };
+
+        v.config_torta.Data.Datasets.Add(dataset);
+    }
+
+    private void Grafica_barras(IEnumerable<Votacion> votos)
+    {
+        Random aleatorio = new Random();
+        Votacion v = votos.First();
+        v.config_barras.Data.Labels.Clear();
+        v.config_barras.Data.Datasets.Clear();
+        v.config_barras.Options.Title.Text = v.Pregunta;
+
+        string[] l = votos.Select(pkg => pkg.Opcion).ToArray();
+        double[] valor = votos.Select(pkg => pkg.Coeficiente).ToArray();
+
+
+        int cont = 0;
+        foreach (var opcion in votos)
+        {
+            v.config_barras.Data.Labels.Add(opcion.Opcion);
+
+            double[] d = new double[valor.Length];
+            d[cont] = valor[cont];
+
+            IEnumerable<double> data = d;
+
+            Byte r = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte g = Convert.ToByte(aleatorio.Next(30, 255));
+            Byte b = Convert.ToByte(aleatorio.Next(30, 255));
+
+            BarDataset<double> dataset = new BarDataset<double>(data)
+            {
+                Label = opcion.Opcion,
+                BackgroundColor = ColorUtil.ColorString(r, g, b, 0.8)
+            };
+
+            v.config_barras.Data.Datasets.Add(dataset);
+            cont++;
+        }
+
+    }
+
+    async Task CargarPanel(int accion)
+    {
+        if (accion == 2 && panel != 2)
+        {
+            panel = accion;
+            await GraficarResultado(PreguntaSelect);
+        }
+        else if (accion == 3 && panel != 3)
+        {
+            panel = accion;
+            await Grafica_Quorum(true);
+        }
+        panel = accion;
+
+        coloresTap = new List<string>() { "", "", "", "" };
+        coloresTap[accion - 1] = coloresTapSelect[accion - 1];
+
+    }
+
+    async Task CargarPreguntas()
+    {
+
+        Preguntas = await preguntaService.GetPreguntasRespuesta(asamblea.IdAsamblea, accesoAsamblea.idAccesoAsamblea);
+        foreach (var p in Preguntas)
+        {
+            p.CantOpciones = 0;
+            p.Opciones = await OpcionService.GetOpcionPreguntas(p.IdPregunta);
+            foreach (var o in p.Opciones)
+            {
+                o.Estado = false;
+            }
+
+            TimeSpan duracion = p.FechaActivacion.AddSeconds(TiempoPreguntas) - p.FechaActualServer;
+            p.Tiempo = Convert.ToInt32(duracion.TotalSeconds);
+
+            PreguntasActivas.Add(p);
+        }
+
+    }
+
+    public async Task ValidarNRespuestas(bool v, Pregunta p, OpcionPregunta op)
+    {
+        if (v)
+        {
+            if (p.CantOpciones < p.NRespuesta || p.TipoPregunta != 3)
+            {
+                op.Estado = v;
+                p.CantOpciones += 1;
+            }
+            else
+            {
+                Snackbar.Add("Numero maximo de Respuestas: " + p.NRespuesta, Severity.Warning);
+            }
+        }
+        else
+        {
+            op.Estado = v;
+            p.CantOpciones -= 1;
+        }
+    }
+
+    public async Task GuardarRespuesta(Pregunta pregunta)
+    {
+        bool respondio = false;
+        Respuesta respuesta = new Respuesta();
+        respuesta.idAccesoAsamblea = accesoAsamblea.idAccesoAsamblea;
+        try
+        {
+            if (pregunta.OpcionSeleccionada == 0)
+            {
+                foreach (var op in pregunta.Opciones) if (op.Estado)
+                    {
+                        respuesta.idOpcionPregunta = op.IdOpcionpregunta;
+                        await respuestaService.SetRespuesta(respuesta);
+                        respondio = true;
+                    }
+            }
+            else
+            {
+                respuesta.idOpcionPregunta = pregunta.OpcionSeleccionada;
+                await respuestaService.SetRespuesta(respuesta);
+                respondio = true;
+            }
+
+            if (respondio)
+            {
+                Snackbar.Add("Respuesta Registrada", Severity.Success);
+                pregunta.EstadoRespuesta = true;
+            }
+            else
+            {
+                Snackbar.Add("No selecciono Respuesta", Severity.Error);
+            }
+
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    async Task Starchat()
+    {
+        try
+        {
+            grupo = "" + IdAsamblea;
+            username = "" + IdUsuario;
+            cliente = new ChatClient(username, "" + grupo, NavigationManager);
+            cliente.MessageReceived += MessageReceived;
+            EnvioMensage = true;
+            await cliente.StartAsync();
+            //await cliente.SendExceptUserAsync("InicioSesion", "" + IdUsuario);
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+
+    }
+
+    ///se ejecuta al recivir un nuevo  mensaje
+    void MessageReceived(object sender, MessageReceivedEventArgs e)
+    {
+        bool isMine = false;
+
+        if (!string.IsNullOrWhiteSpace(e.Username))
+        {
+            isMine = string.Equals(e.Username, username, StringComparison.CurrentCultureIgnoreCase);
+        }
+        if (e.Parametro == "AgregarPregunta")
+        {
+            AgregarPregunta(e.Message);
+        }
+        else if (e.Parametro == "QuitarPregunta")
+        {
+            QuitarPregunta(e.Message);
+        }
+        else if (e.Parametro == "inicio")
+        {
+            DisconnectAsync();
+            NavigationManager.NavigateTo("/asamblea/" + ParametroAsamblea, true);
+        }
+        else if (e.Parametro == "finalizo")
+        {
+            DisconnectAsync();
+            NavigationManager.NavigateTo("/asamblea/" + ParametroAsamblea, true);
+        }
+
+        else if (e.Parametro == "InicioSesion" && e.Message == username && !EnvioMensage)
+        {
+            DisconnectAsync();
+            try
+            {
+                NavigationManager.NavigateTo("/logout", true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("error");
+            }
+        }
+
+        //Snackbar.Add("Parametro " + e.Parametro + "-" + e.Message, Severity.Success);
+        EnvioMensage = false;
+    }
+
+    async Task AgregarPregunta(string id)
+    {
+        try
+        {
+            bool existe = false;
+            int IdPregunta = Convert.ToInt32(id);
+            foreach (var pregunta in PreguntasActivas)
+            {
+                if (pregunta.IdPregunta == IdPregunta)
+                {
+                    existe = true;
+                }
+            }
+            if (!existe)
+            {
+                Pregunta p = await preguntaService.GetPregunta(IdPregunta);
+                bool Respuesta = await preguntaService.GetContestoPregunta(IdPregunta, accesoAsamblea.idAccesoAsamblea);
+                if (Respuesta) p.EstadoRespuesta = true;
+                else p.EstadoRespuesta = false;
+
+                p.Opciones = await OpcionService.GetOpcionPreguntas(p.IdPregunta);
+                p.CantOpciones = 0;
+                p.FechaActivacion.AddSeconds(TiempoPreguntas);
+
+                TimeSpan duracion = p.FechaActivacion.AddSeconds(TiempoPreguntas) - p.FechaActualServer;
+                p.Tiempo = Convert.ToInt32(duracion.TotalSeconds);
+
+                foreach (var item in p.Opciones)
+                {
+                    item.Estado = false;
+                }
+                PreguntasActivas.Add(p);
+                //StateHasChanged();
+                tabs.ActivatePanel(panel01);
+                panel = 1;
+                Snackbar.Add("Nueva Pregunta", Severity.Success);
+
+                await _jsRuntime.InvokeAsync<object>("notificacion", "Nueva Pregunta");
+            }
+            await accesoAsambleaService.UpdateConexion(accesoAsamblea);
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    async Task QuitarPregunta(string id)
+    {
+        foreach (var pregunta in PreguntasActivas)
+        {
+            if (pregunta.IdPregunta == Convert.ToInt32(id))
+            {
+                PreguntasActivas.Remove(pregunta);
+                StateHasChanged();
+            }
+        }
+        await accesoAsambleaService.UpdateConexion(accesoAsamblea);
+    }
+
+    private void TimerOnElapsed(object sender, ElapsedEventArgs e)
+    {
+        foreach (var p in PreguntasActivas)
+        {
+            if (p.Tiempo > 0) p.Tiempo--;
+
+            if (p.Tiempo == 10 && !p.EstadoRespuesta)
+            {
+                _jsRuntime.InvokeAsync<string>("PlayAudio", "roar");
+                Snackbar.Add("¡Faltan 10 segunos para contestar!", Severity.Warning);
+            }
+        }
+        if (panel == 1)
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public string ConvertirTiempo(int t)
+    {
+        string tiempo = "" + t;
+        if (t > 59)
+        {
+            Int32 horas = (t / 3600);
+            Int32 minutos = ((t - horas * 3600) / 60);
+            Int32 segundos = t - (horas * 3600 + minutos * 60);
+            tiempo = (minutos < 10 ? "0" + minutos.ToString() : minutos.ToString()) + ":" + (segundos < 10 ? "0" + segundos.ToString() : segundos.ToString());
+            if (horas != 0) tiempo = horas.ToString() + ":" + tiempo;
+        }
+        return tiempo;
+    }
+
+    ///  se acciona cuanso se cierra la pagina o se va a otra pagina
+    public void Dispose()
+    {
+        if (time != null)
+        {
+            time.Dispose();
+        }
+        DisconnectAsync();
+    }
+
+    async Task DisconnectAsync()
+    {
+        if (accesoAsamblea != null)
+        {
+            accesoAsamblea.EstadoConexion = false;
+            //await accesoAsambleaService.UpdateConexion(accesoAsamblea);
+        }
+        if (cliente != null)
+        {
+            await cliente.StopAsync();
+            cliente = null;
+        }
+    }
+
+    class Message
+    {
+        public string Username { get; set; }
+        public string Parametro { get; set; }
+        public string Body { get; set; }
+        public bool Mine { get; set; }
+
+
+        public Message(string username, string parametro, string body, bool mine)
+        {
+            Username = username;
+            Body = body;
+            Parametro = parametro;
+            Mine = mine;
+        }
+
+    }
+
+    private bool FilterFunc(Archivo element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.NombreArchivo.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    private string url(string ruta)
+    {
+        var path = "archivos/" + ruta;
+        return path;
+    }
+
+
+    public class WindowDimensions
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+}

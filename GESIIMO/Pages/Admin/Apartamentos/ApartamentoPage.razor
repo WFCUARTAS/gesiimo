@@ -1,0 +1,103 @@
+﻿
+@page "/apartamentos/{IdTorre:int}"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+@inject IApartamentoService apartamentoService
+
+@if (apartamentos == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <div class="h2 font-weight-bold mb-3">Listado de Apartamentos</div>
+
+    if (!apartamentos.Any())
+    {
+        <div class="row col pb-3">
+            <RadzenButton Icon="add_circle_outline" Text="Agregar" Click="@AddApartamento" />
+        </div>
+
+        <p><em>No se encontraron resultados.</em></p>
+    }
+    else
+    {
+        <div class="row col">
+            <RadzenGrid PagerPosition="PagerPosition.Bottom" Data="@apartamentos" TItem="Apartamento" 
+                        AllowFiltering="true" AllowPaging="true" PageSize="10" AllowSorting="true" AllowColumnResize="true"
+                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" FilterMode="FilterMode.Simple"
+                        LogicalFilterOperator="LogicalFilterOperator.Or" ColumnWidth="200px">
+                <Columns>
+                    <RadzenGridColumn TItem="Apartamento" Context="data" Bubble="false" Filterable="false"
+                                      Sortable="false" TextAlign="TextAlign.Center" Width="70px" Title="Editar">
+                        <HeaderTemplate>
+                            <RadzenButton ButtonStyle="ButtonStyle.Info" Icon="add_business" Size="ButtonSize.Medium"
+                                          Click="@(() => AddApartamento())" />
+                        </HeaderTemplate>
+                        <Template Context="data">
+                            <RadzenButton ButtonStyle="ButtonStyle.Info" Icon="edit" Size="ButtonSize.Medium"
+                                          Click="@(args => EditApartamento(data.IdApartamento))" />
+                        </Template>
+                    </RadzenGridColumn>
+                    <RadzenGridColumn TItem="Apartamento" Property="DescTorre" Title="Torre" />
+                    <RadzenGridColumn TItem="Apartamento" Property="Descripcion" Title="Apartamento" />
+                    <RadzenGridColumn TItem="Apartamento" Property="Coeficiente" Title="Coeficiente" />
+                    <RadzenGridColumn TItem="Apartamento" Property="CodNovedad" Title="Novedad" />
+                    <RadzenGridColumn TItem="Apartamento" Title="Estado">
+                        <Template Context="data">
+                            <RadzenSwitch @bind-Value="@data.Estado" />
+                        </Template>
+                    </RadzenGridColumn>
+                </Columns>
+            </RadzenGrid>
+        </div>
+    }
+
+    <ApartamentoForm @ref="apartamentoForm" IdTorre="@IdTorre" OnSaved="@OnSaved" OnCancel="@OnCancel" />
+}
+
+@code {
+    [Parameter] public int IdTorre { get; set; }
+
+    private IEnumerable<Apartamento> apartamentos;
+    private ApartamentoForm apartamentoForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+            await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        apartamentos = await apartamentoService.GetApartamentos(IdTorre);
+    }
+
+    #region Eventos Grid
+
+    private async Task AddApartamento()
+    {
+        await apartamentoForm.Show(0);
+    }
+
+    private async Task EditApartamento(int idApartamento)
+    {
+        await apartamentoForm.Show(idApartamento);
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task OnSaved()
+    {
+        await UpdateGrid();
+    }
+
+    private void OnCancel()
+    {
+        apartamentoForm.Hide();
+    }
+
+    #endregion
+}

@@ -1,0 +1,21 @@
+﻿
+
+<MudDialog Style="height:500px;">
+    <TitleContent>
+       
+    </TitleContent>
+    <DialogContent>
+        <MudContainer >
+            <iframe src="@url" style="width:100%; height:450px;" allowfullscreen webkitallowfullscreen></iframe>
+        </MudContainer>
+    </DialogContent>
+</MudDialog>
+
+
+
+@code {
+
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public string url { get; set; }
+
+}

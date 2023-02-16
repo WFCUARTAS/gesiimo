@@ -1,0 +1,239 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+@using System.IO;
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment env
+
+@inject IConjuntoService conjuntoService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Class="mb-2 mx-5" />
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Class="mb-2 mx-5" />
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Class="mb-4 mx-5" />
+}
+else
+{
+    <EditForm Model="@Conjunto" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-3 mr-4">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Nombre" @bind-Value="Conjunto.Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Conjunto.Nombre)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        @*Label="@(CurrentFilter.SystemIds != null ? "System" : "Loading..")"*@
+                        @*<MudAutocomplete T="int" Label="@_localizer["Document Type"]"
+            For="@(() => AddEditDocumentModel.DocumentTypeId)"
+            @bind-Value="AddEditDocumentModel.DocumentTypeId"
+            ResetValueOnEmptyText="true" SearchFunc="@SearchDocumentTypes"
+            Variant="Variant.Filled"
+            ToStringFunc="@(i => _documentTypes.FirstOrDefault(b => b.Id == i)?.Name ?? string.Empty)" OffsetY="true" />*@
+                        <MudSelect Label="Departamento" T="int" Strict="true" Value="@Conjunto.IdDepartamento"
+                                   Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense" OffsetY="true"
+                                   ValueChanged="Departamento_OnChange">
+                            @foreach (var item in Departamentos)
+                            {
+                                <MudSelectItem T="int" Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => Conjunto.IdDepartamento)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        <MudSelect Label="Ciudad" T="int" Strict="true" @bind-Value="@Conjunto.IdCiudad"
+                                   Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense" OffsetY="true">
+                            @foreach (var item in Ciudades)
+                            {
+                                <MudSelectItem Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => Conjunto.IdCiudad)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        <MudTextField Label="Dirección" @bind-Value="Conjunto.Direccion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Conjunto.Direccion)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        <MudTextField Label="Teléfono" @bind-Value="Conjunto.Telefono" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Conjunto.Telefono)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        <MudTextField Label="Celular" @bind-Value="Conjunto.Celular" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Conjunto.Celular)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        <MudTextField Label="Correo electrónico" @bind-Value="Conjunto.Email" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Conjunto.Email)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudTextField Label="Administrador" @bind-Value="Conjunto.Administrador" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Conjunto.Administrador)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="3">
+                        <InputFile id="fileInput" OnChange="UploadFiles" hidden accept=".png, .jpg, .jpeg"/>
+                        <MudFab HtmlTag="label" Style="background-color: #EC616A; color: white" Icon="@Icons.Filled.Image" Label="Cargar logo" for="fileInput" />
+                    </MudItem>
+                    <MudItem xs="12" sm="12" md="3">
+                        <img src="@imagenUrl" width="150px" height="150px"/>
+                    </MudItem>
+
+                     
+                </MudGrid>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Style="background-color: #63BEA9; " Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+
+    public string imagenUrl = "logos/default.png";
+
+    IBrowserFile file = null;
+
+
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+        string format;
+        file = e.File;
+
+        if (file.Size> 102400)
+        {
+            imagenUrl = "logos/default.png";
+            file = null;
+            Snackbar.Add("100 KB maximo", Severity.Error);
+        }
+        else if(file.ContentType == "image/jpeg" || file.ContentType == "image/png")
+        {
+            format = Path.GetExtension(file.Name);
+            var resizeimagen = await file.RequestImageFileAsync(format, 150, 150);
+            var buffer = new byte[resizeimagen.Size];
+            await resizeimagen.OpenReadStream().ReadAsync(buffer);
+
+            imagenUrl = $"data:{format};base64,{Convert.ToBase64String(buffer)}";
+        }
+        else
+        {
+            imagenUrl = "logos/default.png";
+            file = null;
+            Snackbar.Add("archivo no permitido", Severity.Error);
+
+        }
+
+        //TODO upload the files to the server
+    }
+
+
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdConjunto { get; set; }
+    [Parameter] public int IdDepartamento { get; set; }
+    [Parameter] public int IdCiudad { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    private Conjunto Conjunto { get; set; }
+    private IEnumerable<Lista> Departamentos { get; set; }
+    private IEnumerable<Lista> Ciudades { get; set; }
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Departamentos = await listaService.GetLista("Departamento", null, null, null);
+        Ciudades = new List<Lista>();
+
+        if (IdConjunto == 0)
+        {
+            MudDialog.SetTitle("Crear conjunto");
+
+            Conjunto = new Conjunto
+            {
+                IdDepartamento = IdDepartamento,
+                IdCiudad = IdCiudad,
+                Estado = true
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Conjunto");
+            Conjunto = await conjuntoService.GetConjunto(IdConjunto);
+            IdCiudad = Conjunto.IdCiudad;
+        }
+
+        if (Conjunto.Logo!=null )
+        {
+            imagenUrl = "logos/" + Conjunto.Logo;
+
+        }
+
+        await Departamento_OnChange(Conjunto.IdDepartamento);
+        Conjunto.IdCiudad = IdCiudad;
+        loading = false;
+    }
+
+
+    //Func<Lista, string> converter = p => p?.Descripcion;
+
+    public async Task Departamento_OnChange(int valor)
+    {
+        Conjunto.IdDepartamento = valor;
+        Ciudades = await listaService.GetLista("Ciudad", valor, null, null);
+        Conjunto.IdCiudad = 0;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            if(file != null ) {
+                DateTime fecha = DateTime.Now;
+                string nombre = Conjunto.Nombre.Replace(" ", String.Empty);
+                nombre = nombre +fecha.ToString("_ddMMyy-Hmmss") +Path.GetExtension(file.Name);
+
+
+                Stream stream = file.OpenReadStream();
+                var path = $"{env.WebRootPath}\\logos\\{nombre}";
+                FileStream fs = File.Create(path);
+                await stream.CopyToAsync(fs);
+                fs.Close();
+
+                Conjunto.Logo = nombre;
+            }
+
+
+            await conjuntoService.SetConjunto(Conjunto);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+}

@@ -1,0 +1,109 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <UserSecretsId>aspnet-GESIIMO-695ED652-FFD7-462D-92E6-FD7A0A0846F9</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Pages\Admin\Apartamentos\**" />
+    <Compile Remove="Pages\Admin\Conjuntos\**" />
+    <Compile Remove="Pages\Admin\Propietarios\**" />
+    <Compile Remove="Pages\Admin\Torres\**" />
+    <Content Remove="Pages\Admin\Apartamentos\**" />
+    <Content Remove="Pages\Admin\Conjuntos\**" />
+    <Content Remove="Pages\Admin\Propietarios\**" />
+    <Content Remove="Pages\Admin\Torres\**" />
+    <EmbeddedResource Remove="Pages\Admin\Apartamentos\**" />
+    <EmbeddedResource Remove="Pages\Admin\Conjuntos\**" />
+    <EmbeddedResource Remove="Pages\Admin\Propietarios\**" />
+    <EmbeddedResource Remove="Pages\Admin\Torres\**" />
+    <None Remove="Pages\Admin\Apartamentos\**" />
+    <None Remove="Pages\Admin\Conjuntos\**" />
+    <None Remove="Pages\Admin\Propietarios\**" />
+    <None Remove="Pages\Admin\Torres\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="wwwroot\Reports\EmployeeReport.rdlc" />
+    <Content Remove="wwwroot\Reports\InfomeActualizacionDatos.rdlc" />
+    <Content Remove="wwwroot\Reports\InfomePoderes.rdlc" />
+    <Content Remove="wwwroot\Reports\InfomeQuorum.rdlc" />
+    <Content Remove="wwwroot\Reports\InformeVotaciones.rdlc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\Reports\EmployeeReport.rdlc" />
+    <EmbeddedResource Include="wwwroot\Reports\InfomePoderes.rdlc">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\Reports\InfomeActualizacionDatos.rdlc">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\Reports\InfomeQuorum.rdlc">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="wwwroot\Reports\InformeVotaciones.rdlc">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AspNetCore.Reporting" Version="2.1.0" />
+    <PackageReference Include="Blazored.SessionStorage" Version="2.1.0" />
+    <PackageReference Include="BlazorPro.Spinkit" Version="1.2.0" />
+    <PackageReference Include="ChartJs.Blazor.Fork" Version="2.0.2" />
+    <PackageReference Include="Dapper" Version="2.0.90" />
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.15.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="5.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="5.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="5.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="5.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="5.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="5.0.8">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="5.0.2" />
+    <PackageReference Include="MudBlazor" Version="5.0.15" />
+    <PackageReference Include="Syncfusion.DocIO.Net.Core" Version="19.2.0.57" />
+    <PackageReference Include="System.CodeDom" Version="5.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="5.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Model\GESIIMO.Model.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Pages\Admin\AsignacionApartamentos\" />
+    <Folder Include="Properties\PublishProfiles\" />
+    <Folder Include="wwwroot\img\" />
+    <Folder Include="wwwroot\logos\" />
+    <Folder Include="wwwroot\archivos\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="ReportDataSet\DS_Reports.Designer.cs">
+      <DependentUpon>DS_Reports.xsd</DependentUpon>
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="ReportDataSet\DS_Reports.xsc">
+      <DependentUpon>DS_Reports.xsd</DependentUpon>
+    </None>
+    <None Update="ReportDataSet\DS_Reports.xsd">
+      <SubType>Designer</SubType>
+      <LastGenOutput>DS_Reports.Designer.cs</LastGenOutput>
+      <Generator>MSDataSetGenerator</Generator>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="ReportDataSet\DS_Reports.xss">
+      <DependentUpon>DS_Reports.xsd</DependentUpon>
+    </None>
+  </ItemGroup>
+
+</Project>

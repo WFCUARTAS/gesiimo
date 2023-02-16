@@ -1,0 +1,124 @@
+﻿@page "/cuestionarios/{IdAsamblea:int}"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject ICuestionarioService cuestionarioService
+@inject NavigationManager navigationManager
+@inject IDialogService dialogService
+
+@if (Cuestionarios == null)
+    {
+        <div class="spinner"></div>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5"><b>Listado de cuestionarios</b></MudText>
+
+        if (!Cuestionarios.Any())
+        {
+            <div class="d-flex mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AddCircle" OnClick="AddCuestionario">Agregar</MudButton>
+            </div>
+
+            <div class="d-flex mt-3">
+                <p><em>No se encontraron resultados.</em></p>
+            </div>
+        }
+        else
+        {
+            <MudTable Items="@Cuestionarios" Dense="true" Hover="true" Filter="new Func<Cuestionario, bool>(FilterFunc)" Class="mt-3">
+                <ToolBarContent>
+                    <MudToolBarSpacer />
+                    <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  IconSize="Size.Medium" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense">
+                    </MudTextField>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar cuestionario" Color="Color.Error" OnClick="AddCuestionario"></MudIconButton></MudTh>
+                    <MudTh>Preguntas</MudTh>
+                    <MudTh><MudTableSortLabel SortBy="new Func<Cuestionario, object>(x=>x.Descripcion)" InitialDirection="SortDirection.Ascending">Cuestionario</MudTableSortLabel></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Editar cuestionario"  Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EditCuestionario(context))"></MudIconButton></MudTd>
+                    <MudTd>
+                        <MudBadge Content="context.CantPreguntas" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                            <MudIconButton Icon="@Icons.Material.Filled.QuestionAnswer" Title="Agregar preguntas" Style="color: #FBB818" Size="Size.Large" OnClick="@(args => AddPregunta(context))"></MudIconButton>
+                        </MudBadge>
+                    </MudTd>
+                    <MudTd>@context.Descripcion</MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        }
+    }
+
+@code {
+    [Parameter] public int IdAsamblea { get; set; }
+
+    private IEnumerable<Cuestionario> Cuestionarios { get; set; }
+    private string searchString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        Cuestionarios = await cuestionarioService.GetCuestionarios(IdAsamblea);
+    }
+
+    private bool FilterFunc(Cuestionario element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Descripcion.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddCuestionario()
+    {
+        await ShowCuestionarioForm(0, IdAsamblea, "ADD");
+    }
+
+    private async Task EditCuestionario(Cuestionario data)
+    {
+        await ShowCuestionarioForm(data.IdCuestionario, 0, "EDIT");
+    }
+
+    private void AddPregunta(Cuestionario data)
+    {
+        navigationManager.NavigateTo($"preguntas/{data.IdCuestionario}");
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task ShowCuestionarioForm(int idCuestionario, int idAsamblea, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(CuestionarioForm.IdCuestionario), idCuestionario);
+        parameters.Add(nameof(CuestionarioForm.IdAsamblea), idAsamblea);
+        parameters.Add(nameof(CuestionarioForm.Accion), accion);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<CuestionarioForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+        }
+    }
+
+    #endregion
+}

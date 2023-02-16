@@ -1,0 +1,259 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IPoderService poderService
+@inject IApartamentoService apartamentoService 
+@inject IListaService listaService
+@inject IAsignarPoderesService asignarPoderesService;
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <MudDialog ClassActions="mt-1 mb-3 mr-4">
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudContainer Style="max-height: 350px; overflow-y: scroll">
+                <MudGrid>
+
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudText Typo="Typo.h6" Class="d-flex justify-content-center">Representado</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+
+                        <MudAutocomplete T="Lista" Label="Torre" Value="Torre_representado" ValueChanged="@(args => Torre_OnChange(args, 1))"
+                                         SearchFunc="@Searchtorre" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+
+                        <MudAutocomplete T="AsignarPoderes" Label="Apartamento" Value="Apartamento_representado" ValueChanged="@(args => Apartamento_OnChange(args, 1))"
+                                         SearchFunc="@SearchApartamento" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Nombre representado" @bind-Value="Representado.Descripcion" Disabled="true" />
+                    </MudItem>
+
+                    <MudDivider />
+
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudText Typo="Typo.h6" Class="d-flex justify-content-center">Representante</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+
+                        <MudAutocomplete T="Lista" Label="Torre" Value="Torre_representante" ValueChanged="@(args => Torre_OnChange(args, 2))"
+                                         SearchFunc="@Searchtorre" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudAutocomplete T="AsignarPoderes" Label="Apartamento" Value="Apartamento_representante" ValueChanged="@(args => Apartamento_OnChange(args, 2))"
+                                         SearchFunc="@SearchApartamento1" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Nombre representante" @bind-Value="Representante.Descripcion" Disabled="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Observacion" @bind-Value="Observacion" />
+                    </MudItem>
+
+                </MudGrid>
+            </MudContainer>
+        </DialogContent>
+
+        <DialogActions>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" OnClick="guardar">Guardar</MudButton>
+        </DialogActions>
+    </MudDialog>
+    
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdPoder { get; set; }
+    [Parameter] public Asamblea asamblea { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+
+    private Lista Torre_representante { get; set; }
+    private Lista Torre_representado { get; set; }
+
+    private AsignarPoderes Apartamento_representante { get; set; }
+    private AsignarPoderes Apartamento_representado { get; set; }
+
+    private int IdPropietario_representante { get; set; }
+    private int IdPropietario_representado { get; set; }
+
+    private AsignarPoderes Representante { get; set; }
+    private AsignarPoderes Representado { get; set; }
+
+    private IEnumerable<Lista> Conjuntos { get; set; }
+    private List<Lista> Torres { get; set; }
+    private IEnumerable<Lista> Torres1 { get; set; }
+    private IEnumerable<AsignarPoderes> Apartamentos { get; set; }
+    private IEnumerable<AsignarPoderes> Apartamentos1 { get; set; }
+
+    public Poder p { get; set; }
+
+    string title;
+    string Observacion="";
+    private bool validated = false;
+    private bool loading = true;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Torres = new List<Lista>();
+        Apartamentos = new List<AsignarPoderes>();
+        Apartamentos1 = new List<AsignarPoderes>();
+
+        Conjuntos = await listaService.GetLista("Conjunto", null, null, null);
+        Torres = (await listaService.GetLista("Torre", asamblea.IdConjunto, null, null)).ToList();
+
+        Representante = new AsignarPoderes();
+        Representado = new AsignarPoderes();
+
+        p = new Poder();
+
+        if (IdPoder == 0)
+        {
+            MudDialog.SetTitle("Crear Poder");
+            p.IdPoder = 0;
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Poder");
+            p = await poderService.GetPoder(IdPoder);
+
+            Representado.Id = p.IdRepresentado;
+            Representado.Descripcion = p.Representado;
+            Representante.Id = p.IdRepresentante;
+            Representante.Descripcion = p.Representante;
+            Observacion = p.Observacion;
+
+
+            Apartamento ap = new Apartamento();
+            ap = await apartamentoService.GetApartamento(p.IdApartamentoRepresentado);
+            Torre_representado = Torres.Where(e => e.Id == ap.IdTorre).FirstOrDefault();
+            await Torre_OnChange(Torre_representado, 1);
+
+            //Apartamento_representado = Apartamentos.Where(e => e.Id == ap.IdApartamento).FirstOrDefault();
+            //await Apartamento_OnChange(Apartamento_representado, 1);
+
+
+
+            ap = await apartamentoService.GetApartamento(p.idApartamentoRepresentante);
+            Torre_representante = Torres.Where(e => e.Id == ap.IdTorre).FirstOrDefault();
+            await Torre_OnChange(Torre_representante, 2);
+
+            //Apartamento_representante = Apartamentos.Where(e => e.Id == ap.IdApartamento).FirstOrDefault();
+            //await Apartamento_OnChange(Apartamento_representante, 2);
+
+
+        }
+
+
+        loading = false;
+
+    }
+
+    public async Task Torre_OnChange(Lista t, int n)
+    {
+        if (n == 1)
+        {
+            Torre_representado = t;
+            Apartamentos = await asignarPoderesService.GetApartamentoRepresentado(t.Id, asamblea.IdAsamblea);
+        }
+        else
+        {
+            Torre_representante = t;
+            Apartamentos1 = await asignarPoderesService.GetApartamentoRepresentante(Representado.Id, t.Id, asamblea.IdAsamblea);
+        }
+    }
+
+    public async Task Apartamento_OnChange(AsignarPoderes valor, int n)
+    {
+        if (n == 1)
+        {
+            Apartamento_representado = valor;
+            Representado = await asignarPoderesService.GetRepresentante(valor.Id);
+        }
+        else
+        {
+            Apartamento_representante = valor;
+            Representante = await asignarPoderesService.GetRepresentante(valor.Id);
+        }
+    }
+
+    private async Task<IEnumerable<Lista>> Searchtorre(string value)
+    {
+        IEnumerable<Lista> t = Torres;
+        if (value != null) t = Torres.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return t;
+    }
+
+    private async Task<IEnumerable<AsignarPoderes>> SearchApartamento(string value)
+    {
+        IEnumerable<AsignarPoderes> a = Apartamentos;
+        if (value != null) a = Apartamentos.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return a;
+    }
+
+    private async Task<IEnumerable<AsignarPoderes>> SearchApartamento1(string value)
+    {
+        IEnumerable<AsignarPoderes> a = Apartamentos1;
+        if (value != null) a = Apartamentos1.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return a;
+    }
+
+
+
+    private async Task guardar()
+    {
+        try
+        {
+            p.IdRepresentado = Representado.Id;
+            p.IdRepresentante = Representante.Id;
+            p.IdAsamblea = asamblea.IdAsamblea;
+            p.idApartamentoRepresentante = Apartamento_representante.Id;
+            p.IdApartamentoRepresentado = Apartamento_representado.Id;
+            p.Observacion = Observacion;
+
+            await poderService.SetPoder(p);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+}

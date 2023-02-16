@@ -1,0 +1,20 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <MudText>@asamblea</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Finalizar">Finalizar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public string asamblea { get; set; }
+
+
+    void Cancel() => MudDialog.Cancel();
+    void Finalizar() => MudDialog.Close(DialogResult.Ok(true));
+
+}

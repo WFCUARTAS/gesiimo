@@ -1,0 +1,128 @@
+﻿@page "/"
+
+@using Microsoft.AspNetCore.Identity;
+@using GESIIMO.Data;
+@inject NavigationManager MyNavigationManager
+@inject IJSRuntime JsRuntime
+
+@inject UserManager<ApplicationUser> _UserManager
+@inject IDialogService dialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .personas {
+        width: 25%;
+        position: absolute;
+        bottom: 0px;
+        left: 80px;
+    }
+
+    .circulo {
+        width: 15%;
+        position: absolute;
+        right: 0px;
+        top: 20%;
+    }
+
+    .silueta {
+        width: 20%;
+        position: absolute;
+        right: 15%;
+        bottom: 0px;
+    }
+
+    .logo {
+        width: 80% ;
+        margin-left: 10%;
+    }
+
+    body {
+        background-image: url(/Imagen/background_fondo.png);
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position-x: center;
+        background-position-y: 60px;
+        height: @(windowHeight+"px");
+    }
+</style>
+
+<img src="/Imagen/background_personas.png" class="personas">
+<img src="/Imagen/background_circulo.png" class="circulo">
+<img src="/Imagen/background_silueta.png" class="silueta">
+
+<MudItem xs="12" sm="12" md="1">
+</MudItem>
+<MudItem xs="12" sm="12" md="6">
+    <img src="/Imagen/background_logo.png" class="logo">
+</MudItem>
+
+@code
+{
+
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+
+    ApplicationUser Usuario = new ApplicationUser();
+    string name = null;
+
+    public int windowHeight = 600;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        GetDimension();
+        var autenticate = await authenticationStateTask;
+        name = autenticate.User.Identity.Name;
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (name != null)
+            {
+                Usuario = await _UserManager.FindByNameAsync(name);
+
+                await ShowBienvenida(Usuario.NombrePersona + " " + Usuario.ApellidosPersona + " !");
+
+            }
+        }
+    }
+
+    private async Task ShowBienvenida(string nombre)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("nombre", nombre);
+
+        try
+        {
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, DisableBackdropClick = true };
+
+            var dialog = dialogService.Show<BienvenidaDialog>("Cargando...", parameters, options);
+            var result = await dialog.Result;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    private async Task GetDimension()
+    {
+        var dimension = await JsRuntime.InvokeAsync<WindowDimensions>("getWindowSize", "");
+
+        windowHeight = dimension.Height-12;
+
+        StateHasChanged();
+    }
+
+    public class WindowDimensions
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+
+}

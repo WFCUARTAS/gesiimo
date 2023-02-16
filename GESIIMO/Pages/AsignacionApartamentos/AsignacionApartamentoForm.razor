@@ -1,0 +1,158 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IAsignacionApartamentoService asignacionapartamentoService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Class="mb-2 mx-5" />
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Class="mb-2 mx-5"/>
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Class="mb-4 mx-5"/>
+}
+else
+{
+    <EditForm Model="@AsignacionApartamento" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mx-4 my-2">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="12" md="12">
+                        
+                        <MudAutocomplete T="Lista" Label="Conjunto" Value="ConjuntoSelect" ValueChanged="@(args => Conjunto_OnChange(args, true))"
+                                         SearchFunc="@SearchConjunto" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion} ")" />
+
+                        <ValidationMessage For="@(() => AsignacionApartamento.IdConjunto)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudSelect Label="Torre" T="int" Strict="true" Value="@AsignacionApartamento.IdTorre"
+                                   Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense" OffsetY="true"
+                                   ValueChanged="@(args => Torre_OnChange(args, true))">
+                            @foreach (var item in Torres)
+                            {
+                                <MudSelectItem Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => AsignacionApartamento.IdTorre)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudSelect Label="Apartamento" T="int" Strict="true" @bind-Value="@AsignacionApartamento.IdApartamento"
+                                   Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense" OffsetY="true">
+                            @foreach (var item in AsignacionApartamentos)
+                            {
+                                <MudSelectItem Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => AsignacionApartamento.IdApartamento)" />
+                    </MudItem>
+                </MudGrid>
+
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdApartamentoPropietario { get; set; }
+    [Parameter] public int IdPropietario { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    private AsignacionApartamento AsignacionApartamento { get; set; }
+
+    private List<Lista> Conjuntos { get; set; }
+    private Lista ConjuntoSelect;
+
+    private IEnumerable<Lista> Torres { get; set; }
+    private IEnumerable<Lista> AsignacionApartamentos { get; set; }
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Conjuntos = (await listaService.GetLista("Conjunto", null, null, null)).ToList();
+        Torres = new List<Lista>();
+        AsignacionApartamentos = new List<Lista>();
+
+        if (IdApartamentoPropietario == 0)
+        {
+            MudDialog.SetTitle("Crear Asignación");
+
+            AsignacionApartamento = new AsignacionApartamento {
+                IdApartamentoPropietario = IdApartamentoPropietario,
+                IdPropietario = IdPropietario
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Propietario");
+            AsignacionApartamento = await asignacionapartamentoService.GetAsignacionApartamento(IdApartamentoPropietario);
+
+            ConjuntoSelect = Conjuntos.Where(e => e.Id == AsignacionApartamento.IdConjunto).FirstOrDefault();
+            await Conjunto_OnChange(ConjuntoSelect, false);
+        }
+
+
+
+        //await Conjunto_OnChange(AsignacionApartamento.IdConjunto, false);
+        await Torre_OnChange(AsignacionApartamento.IdTorre, false);
+
+        loading = false;
+    }
+
+    public async Task Conjunto_OnChange(Lista valor, bool reset)
+    {
+        ConjuntoSelect = valor;
+        AsignacionApartamento.IdConjunto = valor.Id;
+        Torres = await listaService.GetLista("Torre", valor.Id, null, null);
+        AsignacionApartamento.IdTorre = (reset ? 0 : AsignacionApartamento.IdTorre);
+    }
+
+    public async Task Torre_OnChange(int valor, bool reset)
+    {
+        AsignacionApartamento.IdTorre = valor;
+        AsignacionApartamentos = await listaService.GetLista("AsignacionApartamento", valor, null, null);
+        AsignacionApartamento.IdApartamento = (reset ? 0 : AsignacionApartamento.IdApartamento);
+    }
+
+    private async Task<IEnumerable<Lista>> SearchConjunto(string value)
+    {
+        IEnumerable<Lista> c = Conjuntos;
+        if (value != null) c = Conjuntos.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return c;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            await asignacionapartamentoService.SetAsignacionApartamentos(AsignacionApartamento);
+            Snackbar.Add("Apartamento asignado correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+}

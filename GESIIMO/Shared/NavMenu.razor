@@ -1,0 +1,17 @@
+﻿<MudNavMenu Class="mt-3">
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Filled.Home" Class="mud-nav-link.active">Inicio</MudNavLink>
+
+    <AuthorizeView Roles="administrador">
+        <MudNavLink Href="conjuntos" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.Business">Conjuntos</MudNavLink>
+        <MudNavLink Href="propietarios" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.FactCheck">Propietarios</MudNavLink>
+        <MudNavLink Href="carguejson" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.FileUpload">Cargue masivo</MudNavLink>       
+    </AuthorizeView>
+
+    <MudNavLink Href="asambleas" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.MeetingRoom">Asambleas</MudNavLink>
+    <MudNavLink Href="PerfilUsuario" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.Person">Perfil</MudNavLink>
+
+    <AuthorizeView Roles="administrador">
+        <MudNavLink Href="Configuracion" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.Settings">Configuración</MudNavLink>
+        <MudNavLink Href="ListUsuarios" Match="NavLinkMatch.Prefix" Icon="@Icons.Filled.SupervisorAccount">Usuarios</MudNavLink>
+    </AuthorizeView>
+</MudNavMenu>

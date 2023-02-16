@@ -1,0 +1,263 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+@using System.IO;
+
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment env
+@inject IArchivoService archivoService
+@inject ISnackbar Snackbar
+
+<style>
+    .drag-drop-zone {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .4s;
+    }
+
+    .drag-drop-input {
+        position: absolute;
+        width: 100%;
+        height: 20%;
+        opacity: 0;
+        cursor: pointer;
+        z-index: 2;
+    }
+
+    .drag-enter {
+        box-shadow: var(--mud-elevation-10);
+    }
+</style>
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            
+                    
+
+                <MudPaper @ondragenter="@(() => _dragEnterStyle = "drag-enter")"
+                          @ondragleave="@(() => _dragEnterStyle = null)"
+                          @ondragend="@(() => _dragEnterStyle = null)"
+                          Class=@("drag-drop-zone " + _dragEnterStyle)>
+
+                    <InputFile OnChange="UploadFiles" multiple class="drag-drop-input"   accept=".doc, .docx, .pdf" />
+                    <MudText Typo="Typo.h5">Agregue aquí los archivos</MudText>
+                </MudPaper>
+            
+            @if (files.Any())
+            {
+                <MudList>
+                    @foreach (var file in files)
+                    {
+                        <MudListItem Icon="@Icons.Filled.AttachFile" @key="@file">
+                            @file.Name
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+
+            <MudItem xs="12" sm="12" md="3">
+
+                <MudButton Icon="@Icons.Filled.UploadFile" OnClick="SaveFiles" Disabled="@(!files.Any())" Color="Color.Primary" Variant="Variant.Filled">Cargar archivos</MudButton>
+
+            </MudItem>
+
+            @if (!archivos.Any())
+            {
+
+                <div class="d-flex mt-5">
+                    <p><em>No se encontraron resultados.</em></p>
+                </div>
+            }
+            else
+            {
+
+                <MudTable Items="@archivos" Dense="true" Hover="true" Filter="new Func<Archivo, bool>(FilterFunc)" xs="12" sm="12" md="12">
+                    <ToolBarContent>
+                        <MudToolBarSpacer />
+                        <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      IconSize="Size.Medium" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense">
+                        </MudTextField>
+                    </ToolBarContent>
+
+                    <HeaderContent>
+                        <MudTh>#</MudTh>
+                        <MudTh>Nombre</MudTh>
+                        <MudTh>Ver</MudTh>
+                        <MudTh>Eliminar</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd><MudIconButton Icon="@Icons.Material.Filled.AttachFile" Title="Descargar archivo" Color="Color.Primary" Size="Size.Medium"></MudIconButton></MudTd>
+                        <MudTd DataLabel="Nombre">@context.NombreArchivo</MudTd>
+                        <MudTd><MudIconButton Link="@url(context.RutaArchivo)" Title="Ver archivo" Target="_blank" Icon="@Icons.Material.Filled.RemoveRedEye" Style="color: #CDD618" Size="Size.Large"></MudIconButton></MudTd>
+                        <MudTd><MudIconButton Icon="@Icons.Material.Filled.Delete" Title="Eliminar archvio" OnClick="@(args => delete(context))" Style="color: #EC616A" Size="Size.Large"></MudIconButton></MudTd>
+                    </RowTemplate>
+
+                </MudTable>
+
+            }
+
+        </DialogContent>
+
+        
+
+        <DialogActions>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnVolver">Volver</MudButton>
+        </DialogActions>
+
+    </MudDialog>
+
+}
+
+
+@code {
+    string _dragEnterStyle;
+    IList<IBrowserFile> files = new List<IBrowserFile>();
+    //maximo peso permitido de rchivos BYTE 
+    int MaxSize = 10485760;
+    bool cargando = true;
+
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdAsamblea { get; set; }
+
+    private IEnumerable<Archivo> archivos { get; set; }
+
+    private string searchString = "";
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateGrid();
+
+
+        MudDialog.SetTitle("Archivos asamblea");
+
+        loading = false;
+    }
+
+    private  string url(string ruta)
+    {
+        var path = "archivos/"+ruta;
+        return path;
+    }
+
+    private async Task delete(Archivo archivo)
+    {
+        var path = $"{env.WebRootPath}\\archivos\\{archivo.RutaArchivo}";
+        try
+        {
+            await archivoService.DelArchivo(archivo.IdArchivo);
+            await UpdateGrid();
+
+            File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    private void UploadFiles(InputFileChangeEventArgs e)
+    {
+
+        files.Clear();
+
+        foreach (var file in e.GetMultipleFiles())
+        {
+            if (file.Size > MaxSize)
+            {
+                Snackbar.Add(file.Name +" ->  10 MB maximo", Severity.Error);
+            }
+            else
+            {
+                files.Add(file);
+            }
+        }
+    }
+
+    private async Task SaveFiles()
+    {
+        try
+        {
+            DateTime fecha;
+            int cont = 1;
+            foreach (var file in files)
+            {
+                fecha = DateTime.Now;
+                Archivo archivo = new Archivo();
+
+                string nombre = Path.GetFileNameWithoutExtension(file.Name);
+
+                string ruta = nombre + cont + fecha.ToString("ddMMyyHmmss") + Path.GetExtension(file.Name);
+                Stream stream = file.OpenReadStream(MaxSize);
+                var path = $"{env.WebRootPath}\\archivos\\{ruta}";
+
+                FileStream fs = File.Create(path);
+                await stream.CopyToAsync(fs);
+                stream.Close();
+                fs.Close();
+
+
+                archivo.IdArchivo = 0;
+                archivo.IdAsamblea = IdAsamblea;
+                archivo.NombreArchivo = nombre;
+                archivo.RutaArchivo = ruta;
+
+                await archivoService.SetArchivo(archivo);
+                cont++;
+            }
+            files = new List<IBrowserFile>();
+            await UpdateGrid();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+
+    }
+
+
+    private async Task UpdateGrid()
+    {
+        archivos = await archivoService.GetArchivos(IdAsamblea);
+    }
+
+    private bool FilterFunc(Archivo element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.NombreArchivo.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+
+    private void OnVolver()
+    {
+        MudDialog.Cancel();
+    }
+
+}

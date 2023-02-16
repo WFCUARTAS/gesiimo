@@ -1,0 +1,72 @@
+<MudThemeProvider Theme="GESIIMOTheme" />
+<MudSnackbarProvider />
+<MudDialogProvider DisableBackdropClick="true" MaxWidth="MaxWidth.Small" FullWidth="true" CloseButton="true" />
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly" PreferExactMatches="@true">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <Authorizing>
+                    <text>Autorizando..</text>
+                </Authorizing>
+                <NotAuthorized>
+                    @*<Login></Login>*@
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p>No se encontraron elementos en esta ubicación.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+
+@code {
+    MudTheme GESIIMOTheme = new MudTheme()
+    {
+        Palette = new Palette()
+        {
+            //    //DrawerBackground = "#F5F5F5",
+            //    //TextPrimary = "#182244",
+            Success = "#63BEA9",
+            //    //Primary = "#97E300",
+            //    //Secondary = "#FFFFFF",
+            //    //AppbarBackground = Colors.Red.Default,
+            //    //Black = "#27272f",
+            //    //Background = "#32333d",
+            //    //BackgroundGrey = "#27272f",
+            //    //Surface = "#373740",
+            //    //DrawerText = "rgba(255,255,255, 0.50)",
+            //    //DrawerIcon = "rgba(255,255,255, 0.50)",
+            //    //AppbarText = "rgba(255,255,255, 0.70)",
+            //    //TextSecondary = "rgba(255,255,255, 0.50)",
+            //    //ActionDefault = "#adadb1",
+            //    //ActionDisabled = "rgba(255,255,255, 0.26)",
+            //    //ActionDisabledBackground = "rgba(255,255,255, 0.12)",
+            //    //Dark = "#c1c1c1",
+        },
+
+        //LayoutProperties = new LayoutProperties()
+        //{
+        //    //DrawerMiniWidthLeft = "100px",
+        //    //DrawerWidthLeft = "250px",
+        //    //DrawerMiniWidthRight = "100px",
+        //    //DrawerWidthRight = "250px"
+        //},
+
+        Typography = new Typography()
+        {
+            Default = new Default()
+            {
+                //FontSize = ".75rem",
+                FontFamily = new[] { "Gilroy"},
+                //FontWeight = 400,
+                //LineHeight = 2.66,
+                //LetterSpacing = ".08333em"
+            },
+
+        },
+    };
+}

@@ -1,0 +1,181 @@
+﻿@page "/propietarios"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IPropietarioService propietarioService
+@inject IListaService listaService
+@inject NavigationManager navigationManager
+@inject IDialogService dialogService
+
+
+@if (Propietarios == null || Conjuntos == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized Context="ct">
+            @if (@ct.User.IsInRole("administrador"))
+            {
+                <MudText Typo="Typo.h5" Class="mb-5"><b>Propietarios</b></MudText>
+
+                <MudTable Items="@Propietarios" Dense="true" Hover="true" Filter="new Func<Propietario, bool>(FilterFunc)" Class="mt-3">
+                    <ToolBarContent>
+                        <MudAutocomplete T="Lista" Label="Conjunto" Value="ConjuntoSelect" ValueChanged="@(args => OnChangeConjunto(args))"
+                                         SearchFunc="@SearchConjunto" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion} ")"  />
+
+                        <MudToolBarSpacer />
+                        <MudItem xs="12" sm="12" md="3">
+                            <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Search"
+                                          IconSize="Size.Medium" Variant="Variant.Outlined"
+                                          Margin="Margin.Dense">
+                            </MudTextField>
+                        </MudItem>
+                    </ToolBarContent>
+
+
+                    <HeaderContent>
+                        <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar propietario" Color="Color.Error" OnClick="AddPropietario"></MudIconButton></MudTh>
+                        <MudTh>Apartamentos</MudTh>
+                        <MudTh>Nombres</MudTh>
+                        <MudTh>Apellidos</MudTh>
+                        <MudTh>Correo electrónico</MudTh>
+                        <MudTh>Celular</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.Edit" Title="Editar propietario"  Style="color: #63BEA9" OnClick="@(args => EditPropietario(context))"></MudIconButton>
+                        </MudTd>
+                        <MudTd>
+                            <MudBadge Content="context.CantApartamentos" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                                <MudIconButton Size="Size.Medium" Title="Asignar apartamentos" DisableRipple="true" DisableElevation="true" Icon="@Icons.Material.Filled.Business" Style="color: #EC616A" OnClick="@(args => AddApartamento(context))"></MudIconButton>
+                            </MudBadge>
+                        </MudTd>
+                        <MudTd>@context.Nombre</MudTd>
+                        <MudTd>@context.Apellido</MudTd>
+                        <MudTd>@context.Email</MudTd>
+                        <MudTd>@context.Celular</MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager DisableRowsPerPage="true" />
+                    </PagerContent>
+                </MudTable>
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  Administrador</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code {
+    private IEnumerable<Propietario> Propietarios { get; set; }
+    private int IdConjunto { get; set; }
+
+    private List<Lista> Conjuntos { get; set; }
+    private Lista ConjuntoSelect;
+
+    private string searchString = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Conjuntos = (await listaService.GetLista("Conjunto", null, null, null)).ToList();
+        Conjuntos.Insert(0, new Lista { Id = 0, Descripcion = "- Todos -", Estado = true });
+        IdConjunto = Conjuntos.First().Id;
+
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        Propietarios = await propietarioService.GetPropietarios(IdConjunto);
+    }
+
+    private bool FilterFunc(Propietario element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        else {
+            string[] ss = searchString.Split(" ");
+
+            foreach (var s in ss )if(s!="")
+            {
+                if (element.Nombre.Contains(s, StringComparison.OrdinalIgnoreCase)) return true;
+                if (element.Apellido.Contains(s, StringComparison.OrdinalIgnoreCase)) return true;
+
+            }
+        }
+
+
+        return false;
+    }
+
+    private async Task<IEnumerable<Lista>> SearchConjunto(string value)
+    {
+        IEnumerable<Lista> c = Conjuntos;
+        if (value != null) c = Conjuntos.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return c;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddPropietario()
+    {
+        await ShowPropietarioForm(0, "ADD");
+    }
+
+    private async Task EditPropietario(Propietario data)
+    {
+        await ShowPropietarioForm(data.IdPropietario, "EDIT");
+    }
+
+    private void AddApartamento(Propietario data)
+    {
+        navigationManager.NavigateTo($"asignacionapartamento/{data.IdPropietario}");
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task OnChangeConjunto(Lista l)
+    {
+        ConjuntoSelect = l;
+        IdConjunto = ConjuntoSelect.Id;
+        await UpdateGrid();
+    }
+
+    private async Task ShowPropietarioForm(int idPropietario, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(PropietarioForm.IdPropietario), idPropietario);
+        parameters.Add(nameof(PropietarioForm.Accion), accion);
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth
+        = MaxWidth.Medium,
+            FullWidth = true,
+            DisableBackdropClick = true
+        };
+
+        var dialog = dialogService.Show<PropietarioForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+            //accepted = (bool)(result.Data ?? false);
+        }
+    }
+
+    #endregion
+}

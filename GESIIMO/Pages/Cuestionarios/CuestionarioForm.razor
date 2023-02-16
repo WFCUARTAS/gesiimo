@@ -1,0 +1,97 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject ICuestionarioService torreService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@Cuestionario" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-3 mr-4">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Descripción" @bind-Value="Cuestionario.Descripcion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Cuestionario.Descripcion)" />
+                    </MudItem>
+                </MudGrid>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdAsamblea { get; set; }
+    [Parameter] public int IdCuestionario { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    private Cuestionario Cuestionario { get; set; }
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IdCuestionario == 0)
+        {
+            MudDialog.SetTitle("Crear Cuestionario");
+
+            Cuestionario = new Cuestionario
+            {
+                IdAsamblea = IdAsamblea,
+                Estado = true
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Cuestionario");
+            Cuestionario = await torreService.GetCuestionario(IdCuestionario);
+        }
+
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            await torreService.SetCuestionario(Cuestionario);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+}

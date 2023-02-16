@@ -1,0 +1,140 @@
+﻿
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IOpcionPreguntaService opcionpreguntaService
+@inject NavigationManager navigationManager
+@inject IDialogService dialogService
+
+@if (Opcionpreguntas == null)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">Listado de Opciones de preguntas</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <MudDialog ClassActions="mt-1 mb-3 mr-4" Style="max-height: 90%;">
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">Listado de Opciones de preguntas</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudContainer Style="max-height: 400px; overflow-y: scroll">
+
+                @if (!Opcionpreguntas.Any())
+                {
+                <div class="d-flex mt-3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AddCircle" OnClick="AddOpcionpregunta">Agregar</MudButton>
+                </div>
+
+                <div class="d-flex mt-3">
+                    <p><em>No se encontraron resultados.</em></p>
+                </div>
+                }
+                else
+                {
+                <MudTable Items="@Opcionpreguntas" Dense="true" Hover="true" Filter="new Func<OpcionPregunta, bool>(FilterFunc)" Class="mt-3">
+                    <ToolBarContent>
+                        <MudToolBarSpacer />
+                        <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      IconSize="Size.Medium" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense">
+                        </MudTextField>
+                    </ToolBarContent>
+                    <HeaderContent>
+                        <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar opción de pregunta" Color="Color.Error" OnClick="AddOpcionpregunta"></MudIconButton></MudTh>
+                        <MudTh><MudTableSortLabel SortBy="new Func<OpcionPregunta, object>(x=>x.Opcion)" InitialDirection="SortDirection.Ascending">Opcionpregunta</MudTableSortLabel></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Editar opción de pregunta"  Color="Color.Primary" Size="Size.Large" OnClick="@(args => EditOpcionpregunta(context))"></MudIconButton></MudTd>
+                        <MudTd>@context.Opcion</MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager />
+                    </PagerContent>
+                </MudTable>
+                }
+
+            </MudContainer>
+        </DialogContent>
+
+        <DialogActions>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"  ButtonType="ButtonType.Button" OnClick="OnCancel">Cerrar</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdPregunta { get; set; }
+
+    private IEnumerable<OpcionPregunta> Opcionpreguntas { get; set; }
+    private string searchString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        Opcionpreguntas = await opcionpreguntaService.GetOpcionPreguntas(IdPregunta);
+    }
+
+    private bool FilterFunc(OpcionPregunta element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Opcion.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddOpcionpregunta()
+    {
+        await ShowOpcionpreguntaForm(0, IdPregunta, "ADD");
+    }
+
+    private async Task EditOpcionpregunta(OpcionPregunta data)
+    {
+        await ShowOpcionpreguntaForm(data.IdOpcionpregunta, IdPregunta, "EDIT");
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task ShowOpcionpreguntaForm(int idOpcionpregunta, int idPregunta, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(OpcionPreguntaForm.IdOpcionPregunta), idOpcionpregunta);
+        parameters.Add(nameof(OpcionPreguntaForm.IdPregunta), idPregunta);
+        parameters.Add(nameof(OpcionPreguntaForm.Accion), accion);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<OpcionPreguntaForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    #endregion
+}

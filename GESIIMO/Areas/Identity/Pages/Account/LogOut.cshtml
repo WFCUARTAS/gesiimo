@@ -1,0 +1,29 @@
+﻿@page
+@using Microsoft.AspNetCore.Identity
+@attribute [IgnoreAntiforgeryToken]
+@inject SignInManager<GESIIMO.Data.ApplicationUser> SignInManager
+@functions {
+    public async Task<IActionResult> OnPost()
+    {
+        Boolean residente = false;
+        if (User.IsInRole("residente"))
+        {
+            residente = true;
+        }
+
+        if (SignInManager.IsSignedIn(User))
+        {
+            await SignInManager.SignOutAsync();
+        }
+
+        if (residente)
+        {
+            return Redirect("~/asamblea");
+        }
+        else
+        {
+            return Redirect("~/");
+        }
+
+    }
+}

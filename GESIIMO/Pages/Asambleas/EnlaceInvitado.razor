@@ -1,0 +1,50 @@
+﻿@using Microsoft.AspNetCore.WebUtilities;
+@using System.Text;
+
+@inject NavigationManager MyNavigationManager
+@inject IJSRuntime _jsRuntime;
+
+
+<MudDialog ClassActions="mt-1 mb-3 mr-4" Style="max-height: 100%;">
+    <TitleContent>
+        <MudText Typo="Typo.h5" Class="d-flex justify-content-center">Comparta el enlace con los invitados</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField ReadOnly="true" @bind-Value="@enlace" Variant="Variant.Text" />
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Success" ButtonType="ButtonType.Button" OnClick="CopiarEnlace">Copiar</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Default" ButtonType="ButtonType.Button" OnClick="OnCancel">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdAsamblea { get; set; }
+    [Parameter] public string url { get; set; }
+
+
+
+    string enlace = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        string codeAsamblea = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("" + IdAsamblea));
+
+        enlace = MyNavigationManager.BaseUri + "invitado/" + codeAsamblea;
+
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void CopiarEnlace()
+    {
+        _jsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", enlace);
+    }
+
+}

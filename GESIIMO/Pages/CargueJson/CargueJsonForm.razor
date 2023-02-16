@@ -1,0 +1,256 @@
+﻿@page "/carguejson"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+@using Microsoft.AspNetCore.Identity;
+@using System.IO;
+
+@inject ICargueJsonService carguejsonService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment env
+
+@inject IApartamentoService apartamentoService
+@inject IUsuarioService usuarioService
+@inject UserManager<GESIIMO.Data.ApplicationUser> _UserManager
+
+<style>
+    .Cargando {
+        position: fixed;
+        z-index: 10;
+        border: 25px solid silver;
+        border-top: 25px solid #337AB7;
+        border-radius: 50%;
+        width: 100px;
+        height: 100px;
+        animation: spin 700ms linear infinite;
+        top: 50%;
+        left: 50%;
+        margin-top: -50px;
+        margin-left: -50px;
+    }
+</style>
+
+@if (Cargando)
+{
+    <div class="Cargando"></div>
+}
+
+
+@if (loading)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized Context="ct">
+            @if (@ct.User.IsInRole("administrador"))
+            {
+                <MudText Typo="Typo.h5" Class="mb-3"><b>Cargue masivo de información</b></MudText>
+                <EditForm Model="@CargueJson" OnValidSubmit="OnValidSubmit">
+
+
+                    <MudGrid>
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudAutocomplete T="Lista" Label="Conjunto" @bind-Value="ConjuntoSelect"
+                                             SearchFunc="@SearchConjunto" ToStringFunc="@(e => e == null ? null : $"{e.Descripcion} ")" />
+
+
+                        </MudItem>
+
+
+                        <MudItem xs="6" sm="6" md="3">
+                            <InputFile id="fileInput" OnChange="UploadFiles" hidden accept=".txt" />
+                            <MudFab HtmlTag="label" Style="background-color: #EC616A; color: white" Icon="@Icons.Filled.InsertDriveFile" Label="Cargar Cadena" for="fileInput" />
+                        </MudItem>
+
+                        @if (CadenaJson != null)
+                        {
+                        <MudItem xs="6" sm="6" md="3">
+                            <MudText Typo="Typo.h5" Class="mb-3">Archivo <b>@NombreArchivo</b> listo para procesar</MudText>
+                        </MudItem>
+
+
+                        <MudItem xs="12" Class="d-flex justify-end">
+                            <MudDivider Class="my-3" DividerType="DividerType.FullWidth" />
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" ButtonType="ButtonType.Submit">
+                                Procesar Cadena
+                            </MudButton>
+                        </MudItem>
+                        }
+                    </MudGrid>
+
+                </EditForm>
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  Administrador</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code
+{
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public int IdConjunto { get; set; }
+
+    private CargueJson CargueJson { get; set; } = new CargueJson();
+    private List<Lista> Conjuntos { get; set; }
+    private Lista ConjuntoSelect;
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+    private bool Cargando = false;
+
+    private IEnumerable<Apartamento> Apartamentos { get; set; }
+
+    IBrowserFile file = null;
+    string NombreArchivo = null;
+    string CadenaJson =null;
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        Conjuntos = (await listaService.GetLista("Conjunto", null, null, null)).ToList();
+
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            if (CadenaJson == null)
+            {
+                Snackbar.Add("Debe Cagar un archivo", Severity.Error);
+            }
+            else if (ConjuntoSelect != null)
+            {
+                Cargando = true;
+                CargueJson.IdConjunto = ConjuntoSelect.Id;
+                CargueJson.DataJson = CadenaJson;
+                await carguejsonService.SetCargueJson(CargueJson);
+
+                Apartamentos = await apartamentoService.GetApartamentos(null, ConjuntoSelect.Id);
+                await GenerarUsuarios();
+
+                Snackbar.Add("Archivo cargado correctamente.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Debe selecionar un conjunto", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Cargando = false;
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+
+        file = e.File;
+
+        if (file.ContentType == "text/plain")
+        {
+            NombreArchivo = file.Name;
+
+            Stream stream = file.OpenReadStream();
+            var path = $"{env.WebRootPath}\\archivos\\{file.Name}";
+            FileStream fs = File.Create(path);
+            await stream.CopyToAsync(fs);
+            fs.Close();
+            stream.Close();
+
+            CadenaJson = System.IO.File.ReadAllText(path);
+
+            File.Delete(path);
+            string t = "";
+        }
+        else
+        {
+            file = null;
+            Snackbar.Add("archivo no permitido", Severity.Error);
+        }
+
+        //TODO upload the files to the server
+    }
+
+    private async Task<IEnumerable<Lista>> SearchConjunto(string value)
+    {
+        IEnumerable<Lista> c = Conjuntos;
+        if (value != null) c = Conjuntos.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return c;
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+
+
+    private async Task GenerarUsuarios()
+    {
+        try
+        {
+
+            foreach (var ap in Apartamentos)
+            {
+                if (ap.IdUsuario == null)
+                {
+
+                    string email = await usuarioService.GenerarEmail(ap, IdConjunto);
+
+                    var NewUser = new GESIIMO.Data.ApplicationUser
+                    {
+                        UserName = email,
+                        NombrePersona = "Apartamento " + ap.Descripcion,
+                        ApellidosPersona = "torre " + ap.IdTorre,
+                        PhoneNumber = "0",
+                        Email = email
+                    };
+
+                    var CreateResult = await _UserManager.CreateAsync(NewUser, "Gesimo_12345");
+
+                    if (!CreateResult.Succeeded)
+                    {
+                        if (CreateResult.Errors.FirstOrDefault() != null)
+                        {
+                            Snackbar.Add(CreateResult.Errors.FirstOrDefault().Description, Severity.Error);
+                        }
+                        else
+                        {
+                            Snackbar.Add("Error creando Usuario", Severity.Error);
+                        }
+                    }
+                    else
+                    {
+                        ap.IdUsuario = NewUser.Id;
+                        await _UserManager.AddToRoleAsync(NewUser, "residente");
+                        await apartamentoService.SetApartamento(ap);
+                    }
+
+                }
+            }
+            Cargando = false;
+        }
+        catch (Exception ex)
+        {
+            Cargando = false;
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+
+    }
+}

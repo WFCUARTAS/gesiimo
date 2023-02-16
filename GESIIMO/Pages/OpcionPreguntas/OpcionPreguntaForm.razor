@@ -1,0 +1,97 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IOpcionPreguntaService apartamentoService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@OpcionPregunta" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-2 mr-3" >
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Descripción" @bind-Value="OpcionPregunta.Opcion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => OpcionPregunta.Opcion)" />
+                    </MudItem>
+                </MudGrid>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdOpcionPregunta { get; set; }
+    [Parameter] public int IdPregunta { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    private OpcionPregunta OpcionPregunta { get; set; }
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IdOpcionPregunta == 0)
+        {
+            MudDialog.SetTitle("Crear OpcionPregunta");
+
+            OpcionPregunta = new OpcionPregunta
+            {
+                IdPregunta = IdPregunta,
+                Estado = true
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar OpcionPregunta");
+            OpcionPregunta = await apartamentoService.GetOpcionPregunta(IdOpcionPregunta);
+        }
+
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            await apartamentoService.SetOpcionPregunta(OpcionPregunta);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+}

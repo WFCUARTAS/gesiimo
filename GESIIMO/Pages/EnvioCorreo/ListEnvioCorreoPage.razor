@@ -1,0 +1,134 @@
+﻿@page "/enviocorreo/{IdAsamblea:int}"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+@using GESIIMO.Services.Interfaces
+@using Microsoft.AspNetCore.Identity;
+
+@inject IConjuntoService conjuntoService
+@inject IAsambleaService asambleaService
+@inject ISnackbar Snackbar
+@inject UserManager<GESIIMO.Data.ApplicationUser> _UserManager
+@inject NavigationManager MyNavigationManager
+@inject IConjuntoService conjuntoService
+@inject IEmailSender EmailSend
+<style>
+    .Cargando {
+        position: fixed;
+        border: 25px solid silver;
+        border-top: 25px solid #337AB7;
+        border-radius: 50%;
+        width: 100px;
+        height: 100px;
+        animation: spin 700ms linear infinite;
+        top: 50%;
+        left: 50%;
+        margin-top: -50px;
+        margin-left: -50px;
+    }
+
+</style>
+
+@if (Propietarios == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <MudText Typo="Typo.h5"><b>Asistentes asamblea: "@asamblea.Descripcion" del dia @asamblea.FechaInicio</b></MudText>
+
+    <MudGrid Spacing="1" Class="mb-3 align-center justify-space-between">
+        <MudItem xs="12" sm="12" md="4">
+            <MudText Typo="Typo.h6">
+                Correo masivo enviado: <b>@(asamblea.EnvioMasivo ? "si" : "no") </b>
+            </MudText>
+        </MudItem>
+        <MudItem xs="12" sm="12" md="4" Class="d-flex justify-end">
+            <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-0" />
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="@Propietarios" Dense="true" Hover="true" Filter="new Func<EnvioCorreo, bool>(FilterFunc)" Class="mt-3">
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh>Conjunto</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<EnvioCorreo, object>(x=>x.Propietario)" InitialDirection="SortDirection.Ascending">Propietario</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<EnvioCorreo, object>(x=>x.Email)" InitialDirection="SortDirection.Ascending">Correo electrónico</MudTableSortLabel></MudTh>
+            <MudTh>Envio mailings</MudTh>
+            <MudTh>Mailing enviado</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd><MudIcon Icon="@Icons.Material.Filled.Person" Style="color:#252F64" Size="Size.Large"></MudIcon></MudTd>
+            <MudTd>@context.Conjunto</MudTd>
+            <MudTd>@context.Propietario</MudTd>
+            <MudTd>@context.Email</MudTd>
+            <MudTd ><MudIconButton Icon="@Icons.Material.Filled.Markunread" Title="Enviar mailling" Style="color:#63BEA9" Size="Size.Large" OnClick="@(args => enviar(context))"></MudIconButton></MudTd>
+            <MudTd>
+                @if (context.IndCorreoEnviado)
+                    {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Title="Mailling enviado" Color="Color.Success" Size="Size.Medium"></MudIcon>
+                    }
+                    else
+                    {
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Title="Mailling no enviado" Color="Color.Error" Size="Size.Medium"></MudIcon>
+                    }
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+
+}
+
+@if (Cargando)
+{
+    <div class="Cargando"></div>
+}
+
+
+@code {
+    [Parameter] public int IdAsamblea { get; set; }
+
+    private IEnumerable<EnvioCorreo> Propietarios { get; set; }
+    private Asamblea asamblea { get; set; }
+    private Conjunto conjunto { get; set; }
+
+    private string searchString = string.Empty;
+    private bool Cargando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        asamblea = await asambleaService.GetAsamblea(IdAsamblea);
+        Propietarios = await conjuntoService.GetCorreos(asamblea);
+        conjunto = await conjuntoService.GetConjunto(asamblea.IdConjunto);
+    }
+
+    private bool FilterFunc(EnvioCorreo element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Propietario.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+
+    private async Task enviar(EnvioCorreo envio)
+    {
+        Cargando = true;
+        try
+        {
+            await EmailSend.CitacionIndividual(envio, asamblea, conjunto, MyNavigationManager.BaseUri);
+            Snackbar.Add("Correo enviado ", Severity.Success);
+            envio.IndCorreoEnviado = true;
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+        Cargando = false;
+    }
+
+}

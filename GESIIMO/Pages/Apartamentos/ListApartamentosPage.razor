@@ -1,0 +1,330 @@
+﻿@page "/apartamentos/{IdConjunto:int}"
+
+@using GESIIMO.Model
+@using GESIIMO.Pages.Torres
+@using GESIIMO.Services
+@using Microsoft.AspNetCore.Identity;
+
+@inject IApartamentoService apartamentoService
+@inject IUsuarioService usuarioService
+@inject NavigationManager navigationManager
+@inject IDialogService dialogService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+@inject UserManager<GESIIMO.Data.ApplicationUser> _UserManager
+<style>
+    .Cargando {
+        position: fixed;
+        border: 25px solid silver;
+        border-top: 25px solid #337AB7;
+        border-radius: 50%;
+        width: 100px;
+        height: 100px;
+        animation: spin 700ms linear infinite;
+        top: 50%;
+        left: 50%;
+        margin-top: -50px;
+        margin-left: -50px;
+    }
+</style>
+
+@if (Apartamentos == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized Context="ct">
+            @if (@ct.User.IsInRole("administrador"))
+            {
+                <MudText Typo="Typo.h5" Class="mb-3"><b>Listado de apartamentos</b></MudText>
+
+                <MudGrid Spacing="1" Class="mb-3 align-center justify-space-between">
+                    <MudItem xs="12" sm="12" md="4">
+                        <MudGrid Spacing="2" Class="mb-3 align-center">
+                            <MudItem xs="10" sm="10" md="10">
+
+                                <MudAutocomplete T="Lista" Label="Torre" Value="TorreSelect" ValueChanged="@(args => Torre_OnChange(args))"
+                                                 SearchFunc="@SearchTorre" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+
+                            </MudItem>
+
+                            <MudItem xs="1" sm="1" md="1" Class="d-flex justify-center">
+                                <MudIconButton Variant="Variant.Filled" Color="Color.Info" Title="Agregar torre" Icon="@Icons.Material.Filled.Add"
+                                               OnClick="AddTorre" />
+                            </MudItem>
+                            <MudItem xs="1" sm="1" md="1">
+                                <MudIconButton Variant="Variant.Filled" Color="Color.Info" Icon="@Icons.Material.Filled.Edit" Title="Editar torre" 
+                                               OnClick="EditTorre" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                    <MudItem xs="12" sm="12" md="4" Class="d-flex justify-end">
+                        <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-0" />
+                    </MudItem>
+                </MudGrid>
+
+                if (!Apartamentos.Any())
+                {
+                    <div class="d-flex mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.AddCircle" OnClick="AddApartamento">Agregar</MudButton>
+                    </div>
+
+                    <div class="d-flex mt-3">
+                        <p><em>No se encontraron resultados.</em></p>
+                    </div>
+                }
+                else
+                {
+                    <MudTable Items="@Apartamentos" Dense="true" Hover="true" Filter="new Func<Apartamento, bool>(FilterFunc)" Class="mt-3">
+                        <HeaderContent>
+                            <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar apartamento" Color="Color.Error" OnClick="AddApartamento"></MudIconButton></MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<Apartamento, object>(x=>x.DescTorre)" InitialDirection="SortDirection.Ascending">Torre</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<Apartamento, object>(x=>x.Descripcion)" InitialDirection="SortDirection.Ascending">Apartamento</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<Apartamento, object>(x=>x.Coeficiente)" InitialDirection="SortDirection.Ascending">Coeficiente (%)</MudTableSortLabel></MudTh>
+                            <MudTh>Propietario actual</MudTh>
+                            <MudTh>
+                                Usuario
+                                @if (AddUser)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.PersonAddAlt1" Disabled="@(Cargando)" Color="Color.Primary" Size="Size.Large" OnClick="GenerarUsuarios"></MudIconButton>
+                                }
+                            </MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Editar apartamento"  Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EditApartamento(context))"></MudIconButton></MudTd>
+                            <MudTd>@context.DescTorre</MudTd>
+                            <MudTd>@context.Descripcion</MudTd>
+                            <MudTd>@context.Coeficiente.ToString("N2")</MudTd>
+                            <MudTd>@context.Propietario</MudTd>
+                            @if (context.IdUsuario == null)
+                                        {
+                                <MudTd><MudIcon Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Large"></MudIcon></MudTd>
+                                        }
+                                        else
+                                        {
+                                <MudTd><MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Large"></MudIcon></MudTd>
+                                        }
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager />
+                        </PagerContent>
+                    </MudTable>
+                }
+
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  Administrador</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@if (Cargando)
+{
+    <div class="Cargando"></div>
+}
+
+@code {
+    [Parameter] public int IdConjunto { get; set; }
+
+    private IEnumerable<Apartamento> Apartamentos { get; set; }
+    private List<Lista> Torres = new List<Lista>();
+    private Lista TorreSelect = new Lista();
+    private Lista Todos = new Lista();
+
+    public int idTorre;
+    private string searchString = string.Empty;
+    private bool AddUser = false;
+    private bool Cargando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Todos.Id = 0;
+        Todos.Descripcion = "-- Todos --";
+
+        Torres = new List<Lista>();
+        Torres.Add(Todos);
+
+        Torres.AddRange((await listaService.GetLista("Torre", IdConjunto, null, null)).ToList());
+
+        TorreSelect = Todos;
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+
+        AddUser = false;
+        Apartamentos = await apartamentoService.GetApartamentos(idTorre, IdConjunto);
+        foreach (var ap in Apartamentos)
+        {
+            if (ap.IdUsuario == null)
+            {
+                AddUser = true;
+            }
+        }
+    }
+
+    private async Task<IEnumerable<Lista>> SearchTorre(string value)
+    {
+
+        IEnumerable<Lista> c = new List<Lista>();
+
+        if ((TorreSelect.Id == 0 && TorreSelect.Descripcion == value) || value == null || value == "")
+        {
+            c = Torres;
+        }
+        else
+        {
+            c = Torres.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+
+        return c;
+    }
+
+    public async Task Torre_OnChange(Lista valor)
+    {
+        TorreSelect = valor;
+        idTorre = valor.Id;
+        await UpdateGrid();
+    }
+
+    private bool FilterFunc(Apartamento element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Descripcion.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddTorre()
+    {
+        await ShowTorreForm(0, "ADD");
+    }
+
+    private async Task EditTorre()
+    {
+        if (idTorre > 0)
+        {
+            await ShowTorreForm(idTorre, "EDIT");
+        }
+    }
+
+    private async Task AddApartamento()
+    {
+        await ShowApartamentoForm(0, idTorre, IdConjunto, "ADD");
+    }
+
+    private async Task EditApartamento(Apartamento data)
+    {
+        await ShowApartamentoForm(data.IdApartamento, idTorre, IdConjunto, "EDIT");
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task ShowApartamentoForm(int idApartamento, int idTorre, int idConjunto, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(ApartamentoForm.IdApartamento), idApartamento);
+        parameters.Add(nameof(ApartamentoForm.IdTorre), idTorre);
+        parameters.Add(nameof(ApartamentoForm.IdConjunto), idConjunto);
+        parameters.Add(nameof(ApartamentoForm.Accion), accion);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<ApartamentoForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+        }
+    }
+
+    private async Task ShowTorreForm(int idTorre, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(TorreForm.IdTorre), idTorre);
+        parameters.Add(nameof(TorreForm.IdConjunto), IdConjunto);
+        parameters.Add(nameof(TorreForm.Accion), accion);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<TorreForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+        }
+    }
+
+    private async Task GenerarUsuarios()
+    {
+        try
+        {
+            Cargando = true;
+            foreach (var ap in Apartamentos)
+            {
+                if (ap.IdUsuario == null)
+                {
+
+                    string email = await usuarioService.GenerarEmail(ap, IdConjunto);
+
+                    var NewUser = new GESIIMO.Data.ApplicationUser
+                    {
+                        UserName = email,
+                        NombrePersona = "Apartamento " + ap.Descripcion,
+                        ApellidosPersona = "torre " + ap.IdTorre,
+                        PhoneNumber = "0",
+                        Email = email
+                    };
+
+                    var CreateResult = await _UserManager.CreateAsync(NewUser, "Gesimo_12345");
+
+                    if (!CreateResult.Succeeded)
+                    {
+                        if (CreateResult.Errors.FirstOrDefault() != null)
+                        {
+                            Snackbar.Add(CreateResult.Errors.FirstOrDefault().Description, Severity.Error);
+                        }
+                        else
+                        {
+                            Snackbar.Add("Error creando Usuario", Severity.Error);
+                        }
+                    }
+                    else
+                    {
+                        ap.IdUsuario = NewUser.Id;
+                        await _UserManager.AddToRoleAsync(NewUser, "residente");
+                        await apartamentoService.SetApartamento(ap);
+                    }
+
+                }
+            }
+            Cargando = false;
+        }
+        catch (Exception ex)
+        {
+            Cargando = false;
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+        await UpdateGrid();
+    }
+
+    #endregion
+}

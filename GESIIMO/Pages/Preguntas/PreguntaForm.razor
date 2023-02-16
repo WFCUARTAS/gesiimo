@@ -1,0 +1,155 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IPreguntaService preguntaService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@Pregunta" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-3 mr-4">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudSelect Label="Tipo de pregunta" T="int" Strict="true" Value="@Pregunta.TipoPregunta"
+                                   Dense="true" Variant="Variant.Outlined" ValueChanged="CambioTipoPregunta" Margin="Margin.Dense" OffsetY="true">
+                            @foreach (var item in TipoPreguntas)
+                            {
+                                <MudSelectItem T="int" Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => Pregunta.TipoPregunta)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudSelect Label="Tipo de gráfica" T="int" Strict="true" @bind-Value="@Pregunta.TipoGrafica"
+                                   Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense" OffsetY="true">
+                            @foreach (var item in TipoGraficas)
+                            {
+                                <MudSelectItem Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => Pregunta.TipoGrafica)" />
+                    </MudItem>
+                    @if (NRespuesta)
+                    {
+                        <MudItem xs="12" sm="12" md="6">
+                            <MudTextField Label="Numero de Respuestas" @bind-Value="Pregunta.NRespuesta" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <ValidationMessage For="@(() => Pregunta.NRespuesta)" />
+                        </MudItem>
+                    }
+                    <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Label="Pregunta" @bind-Value="Pregunta.PreguntaDescripcion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Pregunta.PreguntaDescripcion)" />
+                    </MudItem>
+                </MudGrid>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdPregunta { get; set; }
+    [Parameter] public int IdCuestionario { get; set; }
+    [Parameter] public int TipoPregunta { get; set; }
+    [Parameter] public int TipoGrafica { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    private Pregunta Pregunta { get; set; }
+    private IEnumerable<Lista> TipoPreguntas { get; set; }
+    private IEnumerable<Lista> TipoGraficas { get; set; }
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+    private bool NRespuesta = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        TipoPreguntas = await listaService.GetLista("TipoPregunta", null, null, null);
+        TipoGraficas = await listaService.GetLista("TipoGrafica", null, null, null);
+
+        if (IdPregunta == 0)
+        {
+            MudDialog.SetTitle("Crear Pregunta");
+
+            Pregunta = new Pregunta
+            {
+                IdCuestionario = IdCuestionario,
+                IdPregunta = IdPregunta,
+                Estado = false
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Pregunta");
+            Pregunta = await preguntaService.GetPregunta(IdPregunta);
+        }
+
+        if (Pregunta.TipoPregunta == 3)
+        {
+            NRespuesta = true;
+        }
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        if(Pregunta.TipoPregunta != 3)
+        {
+            Pregunta.NRespuesta = 0;
+        }
+
+        try
+        {
+            await preguntaService.SetPregunta(Pregunta);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Success);
+            throw;
+        }
+    }
+
+    public void CambioTipoPregunta(int valor)
+    {
+        Pregunta.TipoPregunta = valor;
+        if (valor == 3)
+        {
+            NRespuesta = true;
+        }
+        else
+        {
+            NRespuesta = false;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+}

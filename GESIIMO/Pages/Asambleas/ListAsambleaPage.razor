@@ -1,0 +1,281 @@
+﻿@page "/asambleas"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+@using System.IO
+
+@inject IAsambleaService asambleaService
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject IReportService reportService
+@inject NavigationManager navigationManager
+@inject IDialogService dialogService
+@inject ISnackbar Snackbar
+
+<style>
+    .mud-popover {
+        z-index: 10000;
+    }
+
+</style>
+
+@if (Asambleas == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <MudText Typo="Typo.h5"><b>Listado de asambleas</b></MudText>
+
+    if (!Asambleas.Any())
+    {
+        <div class="d-flex mt-3">
+            <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.AddCircle" OnClick="AddAsamblea">Agregar</MudButton>
+        </div>
+
+        <div class="d-flex mt-3">
+            <p><em>No se encontraron resultados.</em></p>
+        </div>
+    }
+    else
+    {
+        <MudTable Items="@Asambleas" Dense="true" Hover="true" Filter="new Func<Asamblea, bool>(FilterFunc)" Class="mt-3">
+            <ToolBarContent>
+                <MudToolBarSpacer />
+                <MudItem xs="12" sm="12" md="3">
+                    <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  IconSize="Size.Medium" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense">
+                    </MudTextField>
+                </MudItem>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar asamblea" Color="Color.Error" OnClick="AddAsamblea"></MudIconButton></MudTh>
+                <MudTh>Cuestionarios</MudTh>
+                <MudTh>Poderes</MudTh>
+                <MudTh>Archivos</MudTh>
+                <MudTh>Mailings</MudTh>
+                <MudTh>Invitado</MudTh>
+                <MudTh>Reportes</MudTh>
+                <MudTh>Acción</MudTh>
+                <MudTh>Descripción</MudTh>
+                <MudTh>Fecha inicio asamblea</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Editar asamblea"  Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EditAsamblea(context))"></MudIconButton></MudTd>
+                <MudTd>
+                    <MudBadge Content="context.CantCuestionarios" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                        <MudIconButton Icon="@Icons.Material.Filled.InsertDriveFile" Title="Agregar cuestionarios" Style="color: #FBB818" Size="Size.Large" OnClick="@(args => AddCuestionario(context))"></MudIconButton>
+                    </MudBadge>
+                </MudTd>
+                <MudTd>
+                    <MudBadge Content="context.CantPoderes" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                        <MudIconButton Icon="@Icons.Material.Filled.SupervisorAccount" Title="Agregar poderes" Style="color: #EC616A" Size="Size.Large" OnClick="@(args => AddPoder(context))"></MudIconButton>
+                    </MudBadge>
+                </MudTd>
+                <MudTd>
+                    <MudBadge Content="context.CantArchivos" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                        <MudIconButton Icon="@Icons.Material.Filled.UploadFile" Title="Agregar archivos" Style="color: #1EA7DB" Size="Size.Large" OnClick="@(args => AddArchivo(context))"></MudIconButton>
+                    </MudBadge>
+                </MudTd>
+
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Email" Title="Enviar maillings" Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EnvioCorreos(context))"></MudIconButton>
+                </MudTd>
+
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.AttachFile" Title="Generar link para invitado" Style="color: #252F64" Size="Size.Large" OnClick="@(args => EnlaceInvitado(context))"></MudIconButton>
+                </MudTd>
+
+                <MudTd>
+                    <MudMenu Label="Reportes" Variant="Variant.Filled" EndIcon="@Icons.Filled.KeyboardArrowDown" IconColor="Color.Secondary">
+                        <MudMenuItem Link="@(navigationManager.BaseUri+"api/Report/InformeVotacion/"+context.IdAsamblea)" Target="_blank">Informe votaciones</MudMenuItem>
+                        <MudMenuItem Link="@(navigationManager.BaseUri+"api/Report/InfomeQuorum/"+context.IdAsamblea)" Target="_blank">Informe quórum</MudMenuItem>
+                        <MudMenuItem Link="@(navigationManager.BaseUri+"api/Report/InfomeActualizacionDatos/"+context.IdAsamblea)" Target="_blank">Actualización de datos</MudMenuItem>
+                        @if (context.CantPoderes > 0)
+                        {
+                            <MudMenuItem Link="@(navigationManager.BaseUri+"api/Report/InfomePoderes/"+context.IdAsamblea)" Target="_blank">Informe poderes</MudMenuItem>
+                        }
+                        @if (context.FechaInicioReal != new DateTime(2000, 01, 01) && !context.Estado)
+                        {
+                            <MudMenuItem OnClick="@(args => informeAsamblea(context.IdAsamblea))" Target="_blank">Informe asamblea</MudMenuItem>
+                        }
+                        
+                    </MudMenu>
+                </MudTd>
+
+                <MudTd>
+
+                    @if (context.FechaInicioReal != new DateTime(2000, 01, 01) && !context.Estado)
+                            {
+                        <MudButton EndIcon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Large">Finalizó</MudButton>
+                            }
+                            else if (!context.Estado)
+                            {
+                        <MudButton EndIcon="@Icons.Material.Filled.PlayArrow" Color="Color.Success" Size="Size.Large" OnClick="@(args => IniciarAsamblea(context, true))">Iniciar</MudButton>
+                            }
+                            else
+                            {
+                        <MudButton EndIcon="@Icons.Material.Filled.Replay" Color="Color.Warning" Size="Size.Large" OnClick="@(args => IniciarAsamblea(context, false))">Reanudar</MudButton>
+                            }
+                </MudTd>
+
+                <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
+                <MudTd DataLabel="Fecha inicio asamblea">@context.FechaInicio</MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+    }
+}
+
+@code {
+    private List<Asamblea> AsambleasDesorden { get; set; }
+    private IEnumerable<Asamblea> Asambleas { get; set; }
+    private string searchString = "";
+    private int IdAsamblea = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateGrid();
+    }
+
+    protected async void informeAsamblea(int idAsamblea)
+    {
+        MemoryStream documentStream = await reportService.GetInfomeAsamblea(idAsamblea);
+        await JS.InvokeAsync<object>(
+          "saveAsFile",
+          "InformeDetalleAsamblea.docx",
+          documentStream.ToArray());
+    }
+
+    private async Task UpdateGrid()
+    {
+        AsambleasDesorden = (await asambleaService.GetAsambleas(1)).ToList();
+        Asambleas = AsambleasDesorden.Where(e => e.FechaInicioReal != new DateTime(2000, 01, 01) && e.Estado);
+
+        Asambleas = Asambleas.Union(AsambleasDesorden.Where(e => e.FechaInicioReal == new DateTime(2000, 01, 01) && !e.Estado) );
+
+        Asambleas = Asambleas.Union(AsambleasDesorden.Where(e => e.FechaInicioReal != new DateTime(2000, 01, 01) && !e.Estado) );
+
+
+    }
+
+    private bool FilterFunc(Asamblea element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Descripcion.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddAsamblea()
+    {
+        IdAsamblea = 0;
+
+        await ShowAsambleaForm(0, "ADD");
+    }
+
+    private async Task EditAsamblea(Asamblea data)
+    {
+        await ShowAsambleaForm(data.IdAsamblea, "EDIT");
+    }
+
+    private void AddCuestionario(Asamblea data)
+    {
+        navigationManager.NavigateTo($"cuestionarios/{data.IdAsamblea}");
+    }
+
+    private void AddPoder(Asamblea data)
+    {
+        navigationManager.NavigateTo($"poderes/{data.IdAsamblea}");
+    }
+
+    private void EnvioCorreos(Asamblea data)
+    {
+        navigationManager.NavigateTo($"enviocorreo/{data.IdAsamblea}");
+    }
+
+
+    private async Task EnlaceInvitado(Asamblea data)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(AsambleaForm.IdAsamblea), data.IdAsamblea);
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<EnlaceInvitado>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+    }
+
+    async Task IniciarAsamblea(Asamblea a, bool iniciar)
+    {
+        try
+        {
+            if (iniciar)
+            {
+                Asamblea asamblea = await asambleaService.GetAsamblea(a.IdAsamblea);
+                asamblea.Estado = true;
+                asamblea.FechaInicioReal = DateTime.Now;
+
+                await asambleaService.SetAsamblea(asamblea);
+            }
+
+            navigationManager.NavigateTo($"AdminAsamblea/{a.IdAsamblea}");
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    private async Task AddArchivo(Asamblea data)
+    {
+        await ShowArchivoForm(data.IdAsamblea);
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task ShowAsambleaForm(int idAsamblea, string accion)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(AsambleaForm.IdAsamblea), idAsamblea);
+        parameters.Add(nameof(AsambleaForm.Accion), accion);
+
+        var options = new DialogOptions { CloseButton = false, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<AsambleaForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+            //accepted = (bool)(result.Data ?? false);
+        }
+    }
+
+    private async Task ShowArchivoForm(int idAsamblea)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(ArchivoForm.IdAsamblea), idAsamblea);
+
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true, DisableBackdropClick = true };
+
+        var dialog = dialogService.Show<ArchivoForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+            //accepted = (bool)(result.Data ?? false);
+        }
+    }
+
+    #endregion
+}

@@ -1,0 +1,167 @@
+﻿@using GESIIMO.Model
+@using GESIIMO.Services
+@using InputType = MudBlazor.InputType
+@using Microsoft.AspNetCore.Identity;
+
+@inject IApartamentoService apartamentoService
+@inject IUsuarioService usuarioService
+@inject ITorreService torreService
+@inject IListaService listaService
+@inject ISnackbar Snackbar
+@inject UserManager<GESIIMO.Data.ApplicationUser> _UserManager
+
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@Apartamento" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-3 mr-4">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudGrid>
+                    <MudItem xs="10" sm="10" md="6">
+                        <MudSelect Label="Torre" T="int" Strict="true" @bind-Value="@Apartamento.IdTorre" Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense" OffsetY="true">
+                            @foreach (var item in Torres)
+                            {
+                                <MudSelectItem T="int" Value="@item.Id">@item.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <ValidationMessage For="@(() => Apartamento.IdTorre)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudTextField Label="Descripción" @bind-Value="Apartamento.Descripcion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Apartamento.Descripcion)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudNumericField Label="Coeficiente (1,01~100%)" @bind-Value="Apartamento.Coeficiente" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         T="double" HideSpinButtons="true" Step="0.01" />
+                        @*<MudTextField Label="Coeficiente (1~100%)" @bind-Value="Apartamento.Coeficiente" Variant="Variant.Outlined" Margin="Margin.Dense"
+            InputType="InputType.Number" T="decimal" />*@
+                        <ValidationMessage For="@(() => Apartamento.Coeficiente)" />
+                    </MudItem>
+                </MudGrid>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="@(validated)" ButtonType="ButtonType.Button" OnClick="OnValidSubmit">Guardar</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdApartamento { get; set; }
+    [Parameter] public int IdTorre { get; set; }
+    [Parameter] public int IdConjunto { get; set; }
+    [Parameter] public string Accion { get; set; }
+
+    private Apartamento Apartamento { get; set; }
+
+    string title;
+    private bool validated = false;
+    private bool loading = true;
+
+
+    private IEnumerable<Lista> Torres { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Torres = await listaService.GetLista("Torre", IdConjunto, null, null);
+        if (IdApartamento == 0)
+        {
+            MudDialog.SetTitle("Crear Apartamento");
+
+            Apartamento = new Apartamento
+            {
+                IdTorre = IdTorre,
+                CodNovedad = "ACT",
+                Estado = true
+            };
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Apartamento");
+            Apartamento = await apartamentoService.GetApartamento(IdApartamento);
+        }
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+
+        try
+        {
+
+            if (Apartamento.IdUsuario == null)
+            {
+                string IdUsuario = await CrearUsuario();
+                Apartamento.IdUsuario = IdUsuario;
+            }
+
+            await apartamentoService.SetApartamento(Apartamento);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task<string> CrearUsuario()
+    {
+        string email = await usuarioService.GenerarEmail(Apartamento, IdConjunto);
+
+        var NewUser = new GESIIMO.Data.ApplicationUser
+        {
+            UserName = email,
+            NombrePersona = "Apartamento " + Apartamento.Descripcion,
+            ApellidosPersona = "torre " + Apartamento.IdTorre,
+            PhoneNumber = "0",
+            Email = email
+        };
+        var CreateResult = await _UserManager.CreateAsync(NewUser, "Gesimo_12345");
+
+        if (!CreateResult.Succeeded)
+        {
+            if (CreateResult.Errors.FirstOrDefault() != null)
+            {
+                Snackbar.Add(CreateResult.Errors.FirstOrDefault().Description, Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("Error creando Usuario", Severity.Error);
+            }
+
+        }
+        else
+        {
+            await _UserManager.AddToRoleAsync(NewUser, "residente");
+        }
+
+        return NewUser.Id;
+    }
+}

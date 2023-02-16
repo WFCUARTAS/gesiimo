@@ -1,0 +1,105 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+
+@inject IJSRuntime JsRuntime
+
+
+<MudLayout>
+    <MudAppBar Style="height:60px; background-color: #63BEA9" Elevation="1" Dense="true">
+        @if (windowWidth < 600)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        }
+
+        <img src="Imagen/Logo_blanco.png"  style="height: 100%; padding-top: 5px;" alt="Respoder Virtual" />
+
+        <MudSpacer />
+        <LoginDisplay />
+
+    </MudAppBar>
+    @if (windowWidth < 600)
+    {
+        <MudDrawer @bind-Open="@open" ClipMode="DrawerClipMode.Always" PreserveOpenState="true" Breakpoint="Breakpoint.SmAndDown"
+                   Elevation="5" Variant="DrawerVariant.Responsive" OpenMiniOnHover="true" DisableOverlay="true">
+            <NavMenu />
+        </MudDrawer>
+
+    }
+    else
+    {
+        <MudDrawer @bind-Open="@open" ClipMode="DrawerClipMode.Always" PreserveOpenState="true" Breakpoint="Breakpoint.SmAndDown"
+                   Elevation="5" Variant="DrawerVariant.Mini" OpenMiniOnHover="true" DisableOverlay="true">
+            <NavMenu />
+        </MudDrawer>
+
+    }
+
+    <MudMainContent Class="mt-3" Style="@padd">
+        <MudContainer>
+            @Body
+
+        </MudContainer>
+    </MudMainContent>
+
+    <footer style="width: 100vw; z-index: 1500; position: fixed; height: 30px; bottom: 0; background-color: gainsboro">
+        <div style=" margin-top: -5px; margin-left: 20px;">
+            &copy; 2021 - Responder Virtual
+
+            <MudIconButton Icon="@Icons.Custom.Brands.Facebook" Color="Color.Inherit" Target="_blank" Link="https://www.facebook.com/CorporacionResponder/" />
+            <MudIconButton Icon="@Icons.Custom.Brands.Twitter" Color="Color.Inherit" Target="_blank" Link="https://twitter.com/respondercorp?lang=es" />
+            <MudIconButton Icon="@Icons.Custom.Brands.Instagram" Color="Color.Inherit" Target="_blank" Link="https://www.instagram.com/corporacionresponder/" />
+        </div>
+    </footer>
+</MudLayout>
+
+
+
+@code {
+    [CascadingParameter] protected Task<AuthenticationState> AuthStat { get; set; }
+
+    string padd = "padding-left:50px; padding-right:50px; padding-bottom:40px;";
+
+    public int windowHeight =600, windowWidth =600;
+
+
+    private bool open = false;
+
+    private void ToggleDrawer()
+    {
+        open = !open;
+    }
+
+
+    protected async override Task OnInitializedAsync()
+    {
+        GetDimension();
+        var user = (await AuthStat).User;
+        if (!user.Identity.IsAuthenticated || user.IsInRole("residente"))
+        {
+            NavigationManager.NavigateTo("Identity/Account/Login");
+        }
+    }
+
+
+
+    private async Task GetDimension()
+    {
+        var dimension = await JsRuntime.InvokeAsync<WindowDimensions>("getWindowSize", "");
+
+        windowHeight = dimension.Height;
+        windowWidth = dimension.Width;
+        if (windowWidth < 600) padd = "padding-bottom:40px;";
+        StateHasChanged();
+
+
+    }
+
+    public class WindowDimensions
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+}
+
+

@@ -1,0 +1,286 @@
+﻿@using Microsoft.AspNetCore.Authorization;
+@using Microsoft.AspNetCore.Identity;
+@using GESIIMO.Data;
+@using GESIIMO.Services.Interfaces;
+@using System.Text;
+@using Microsoft.AspNetCore.WebUtilities;
+
+
+@inject UserManager<GESIIMO.Data.ApplicationUser> _UserManager
+@inject RoleManager<IdentityRole> _RoleManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager MyNavigationManager
+@inject IEmailSender EmailSend
+@inject ISnackbar Snackbar
+
+
+@if (loading)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+            <MudSkeleton Animation="Animation.Pulse" Width="100%" />
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@Usuario" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog ClassActions="mt-1 mb-3 mr-4">
+            <TitleContent>
+                <MudText Typo="Typo.h5" Class="d-flex justify-content-center">@MudDialog.Title</MudText>
+            </TitleContent>
+
+            <DialogContent>
+                <MudGrid>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudTextField Label="Nombre" @bind-Value="Usuario.NombrePersona" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Usuario)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudTextField Label="Apellido" @bind-Value="Usuario.ApellidosPersona" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Usuario)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudTextField Label="Telefono Celular" @bind-Value="Usuario.PhoneNumber" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Usuario)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="6">
+                        <MudTextField Required="true" Label="Email" @bind-Value="Usuario.Email" Disabled="@(validated)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Usuario)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="12">
+                        <MudSelect @bind-Value="RoleSelect" Label="Tipo de usuario" Variant="Variant.Outlined" OffsetY="true">
+                            <MudSelectItem Value="@("residente")" />
+                            <MudSelectItem Value="@("moderador")" />
+                            <MudSelectItem Value="@("administrador")" />
+                        </MudSelect>
+                    </MudItem>
+
+
+                    <MudItem xs="12" sm="12" md="6">
+                        @if (UsuarioSelect.Id == null)
+                        {
+                            <MudSwitch @bind-Checked="@DefaultPassword" Label="Contraseña Automatica" />
+                        }
+                        <MudTextField InputType="InputType.Password" Disabled="@(DefaultPassword ? true : false)" Label="Contaseña" @bind-Value="Usuario.PasswordHash" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <ValidationMessage For="@(() => Usuario)" />
+                    </MudItem>
+
+
+                </MudGrid>
+            </DialogContent>
+
+            <DialogActions>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" ButtonType="ButtonType.Button" OnClick="OnCancel">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" ButtonType="ButtonType.Submit" DisableElevation="true">Guardar</MudButton>
+            </DialogActions>
+
+        </MudDialog>
+    </EditForm>
+
+}
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public ApplicationUser UsuarioSelect { get; set; }
+
+    public ApplicationUser Usuario = new ApplicationUser();
+
+
+    string title;
+    private bool loading = true;
+    private bool validated = false;
+    public bool DefaultPassword { get; set; } = true;
+
+    private string RoleSelect = null;
+    private string RoleOld;
+    List<string> Options = new List<string>() { "moderador", "administrador" };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        if (UsuarioSelect.Id == null)
+        {
+            MudDialog.SetTitle("Crear AUsuario");
+            RoleSelect = "moderador";
+        }
+        else
+        {
+            MudDialog.SetTitle("Editar Usuario");
+            DefaultPassword = false;
+
+            Usuario.NombrePersona = UsuarioSelect.NombrePersona;
+            Usuario.ApellidosPersona = UsuarioSelect.ApellidosPersona;
+            Usuario.Email = UsuarioSelect.Email;
+            Usuario.PhoneNumber = UsuarioSelect.PhoneNumber;
+            Usuario.PasswordHash = "*****";
+
+            foreach (var rol in Options)
+            {
+                var resul = await _UserManager.IsInRoleAsync(UsuarioSelect, rol);
+                if (resul)
+                {
+                    RoleSelect = rol;
+                    RoleOld = rol;
+                }
+            }
+
+            validated = true;
+        }
+
+        loading = false;
+    }
+
+    private async Task OnValidSubmit()
+    {
+        try
+        {
+            if (UsuarioSelect.Id == null)
+            {
+                // Insertar nuevo usuario
+                var NewUser = new GESIIMO.Data.ApplicationUser
+                {
+                    UserName = Usuario.Email,
+                    NombrePersona = Usuario.NombrePersona,
+                    ApellidosPersona = Usuario.ApellidosPersona,
+                    PhoneNumber = Usuario.PhoneNumber,
+                    Email = Usuario.Email
+                };
+                if (DefaultPassword) Usuario.PasswordHash = Password();
+
+                var CreateResult = await _UserManager.CreateAsync(NewUser, Usuario.PasswordHash);
+
+                if (!CreateResult.Succeeded)
+                {
+                    if (CreateResult.Errors.FirstOrDefault() != null)
+                    {
+                        Snackbar.Add(CreateResult.Errors.FirstOrDefault().Description, Severity.Error);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Error creando Usuario", Severity.Error);
+                    }
+                    // Mantener la ventana emergente abierta
+                    return;
+                }
+                else
+                {
+                    await _UserManager.AddToRoleAsync(NewUser, RoleSelect);
+                    await EnviarCorreo();
+                }
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                //Editar un usuario
+                ApplicationUser user = new ApplicationUser();
+                user = await _UserManager.FindByIdAsync(UsuarioSelect.Id);
+                // Update Email
+                //user.UserName = Usuario.Email;
+                user.NombrePersona = Usuario.NombrePersona;
+                user.ApellidosPersona = Usuario.ApellidosPersona;
+                user.PhoneNumber = Usuario.PhoneNumber;
+
+                // Update the user
+                await _UserManager.UpdateAsync(user);
+                // Only update password if the current value
+                if (Usuario.PasswordHash != "*****")
+                {
+
+                    var resetToken = await _UserManager.GeneratePasswordResetTokenAsync(user);
+                    var passworduser = await _UserManager.ResetPasswordAsync(
+                            user,
+                            resetToken,
+                            Usuario.PasswordHash);
+                    if (!passworduser.Succeeded)
+                    {
+                        if (passworduser.Errors.FirstOrDefault() != null)
+                        {
+                            Snackbar.Add(passworduser.Errors.FirstOrDefault().Description, Severity.Error);
+                        }
+                        else
+                        {
+                            Snackbar.Add("Error Contraseña", Severity.Error);
+                        }
+
+                    }
+
+                }
+                if (RoleOld != RoleSelect)
+                {
+                    var result = await _UserManager.RemoveFromRoleAsync(user, RoleOld);
+
+                }
+
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+
+    }
+
+    private async Task EnviarCorreo()
+    {
+        try
+        {
+            ApplicationUser user = new ApplicationUser();
+            user = await _UserManager.FindByEmailAsync(Usuario.Email);
+
+            string code = await _UserManager.GeneratePasswordResetTokenAsync(user);
+            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+            string html = "Bienvenido al aplicativo GESIIMO, podrá ingresar haciendo  <a href='"+ MyNavigationManager.BaseUri + "Identity/Account/ResetPassword?code=" + code + "'>CLIK AQUI</a> , asigne una contraseña a su usuario y podrá ingresar.";
+
+            await EmailSend.SendEmailAsync(
+                user.Email,
+                "Creación de Usuario GESIIMO", html);
+
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            throw;
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private string Password()
+    {
+        string contraseña = string.Empty;
+        string[] letras = { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "ñ", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z" };
+        string[] letrasM = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" };
+        string[] caracter = { "*", "-", "+", ".", ",", "(", ")", "&", "%", "$", "!", "?", "¡", "_", "[", "]", "<", ">" };
+        Random EleccionAleatoria = new Random();
+
+        for (int i = 0; i < 4; i++)
+        {
+            contraseña += letras[EleccionAleatoria.Next(0, 26)];
+            contraseña += letrasM[EleccionAleatoria.Next(0, 26)];
+            contraseña += EleccionAleatoria.Next(0, 9);
+            contraseña += caracter[EleccionAleatoria.Next(0, 18)];
+        }
+        return contraseña;
+    }
+
+}

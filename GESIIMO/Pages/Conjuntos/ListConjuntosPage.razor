@@ -1,0 +1,260 @@
+﻿@page "/conjuntos"
+
+@using GESIIMO.Model
+@using GESIIMO.Services
+
+@inject IConjuntoService conjuntoService
+@inject IListaService listaService
+@inject IDialogService dialogService
+@inject NavigationManager navigationManager
+
+@if (Conjuntos == null)
+{
+    <div class="spinner"></div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized Context="ct">
+            @if (@ct.User.IsInRole("administrador"))
+            {
+                <MudText Typo="Typo.h5" Class="mb-3"><b>Listado de conjuntos</b></MudText>
+
+                <MudGrid Spacing="1" Class="mb-3">
+                    <MudItem xs="12" sm="12" md="4">
+                       
+                        <MudAutocomplete T="Lista" Label="Departamento" Value="DepartamentoSelect" ValueChanged="@(args => Departamento_OnChange(args))"
+                                         SearchFunc="@SearchDepartamento" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="4">
+                        
+                        <MudAutocomplete T="Lista" Label="Ciudad" Value="CiudadSelect" ValueChanged="@(args => Ciudad_OnChange(args))"
+                                         SearchFunc="@SearchCiudad" ToStringFunc="@(e=> e==null?null : $"{e.Descripcion}")" />
+                    </MudItem>
+
+                    <MudItem xs="0" sm="0" md="1">
+                    </MudItem>
+
+                    <MudItem xs="12" sm="12" md="3">
+                        <MudTextField @bind-Value="searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      IconSize="Size.Medium" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense">
+                        </MudTextField>
+                    </MudItem>
+                </MudGrid>
+
+
+                if (!Conjuntos.Any())
+                {
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12">
+                            <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.AddCircle" OnClick="AddConjunto">Agregar</MudButton>
+                        </MudItem>
+                        <MudItem xs="12">
+                            <em>No se encontraron resultados.</em>
+                        </MudItem>
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudTable Items="@Conjuntos" Dense="true" Hover="true" Filter="new Func<Conjunto, bool>(FilterFunc)" Class="mt-3">
+                        <HeaderContent>
+                            <MudTh><MudIconButton Size="Size.Large" Icon="@Icons.Material.Filled.AddCircle" Title="Agregar conjunto" Color="Color.Error" OnClick="AddConjunto"></MudIconButton></MudTh>
+                            <MudTh>Apartamentos</MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<Conjunto, object>(x=>x.Nombre)" InitialDirection="SortDirection.Ascending">Conjunto</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<Conjunto, object>(x=>x.DescUbicacion)">Ubicación</MudTableSortLabel></MudTh>
+                            <MudTh>Teléfono</MudTh>
+                            <MudTh>Celular</MudTh>
+                            <MudTh>Administrador</MudTh>
+                            <MudTh>Correo electrónico</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Title="Editar conjunto" Style="color: #63BEA9" Size="Size.Large" OnClick="@(args => EditConjunto(context))"></MudIconButton></MudTd>
+                            <MudTd>
+                                <MudBadge Content="context.CantApartamentos" Color="Color.Primary" Overlap="true" Bottom="true" Class="mt-0 mb-3">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Business" Title="Agregar apartamento" Style="color: #EC616A" Size="Size.Large" OnClick="@(args => AddApartamento(context))"></MudIconButton>
+                                </MudBadge>
+                            </MudTd>
+                            <MudTd>@context.Nombre</MudTd>
+                            <MudTd>@context.DescUbicacion</MudTd>
+                            <MudTd DataLabel="Teléfono">@context.Telefono</MudTd>
+                            <MudTd DataLabel="Celular">@context.Celular</MudTd>
+                            <MudTd DataLabel="Administrador">@context.Administrador</MudTd>
+                            <MudTd DataLabel="Email">@context.Email</MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager />
+                        </PagerContent>
+                    </MudTable>
+                }
+
+            }
+            else
+            {
+                <p> No ha iniciado sesión como usuario  Administrador</p>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <p>You're not loggged in.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code {
+    private IEnumerable<Conjunto> Conjuntos { get; set; }
+    private List<Lista> Departamentos = new List<Lista>();
+    private List<Lista> Ciudades = new List<Lista>();
+
+    private Lista DepartamentoSelect { get; set; }
+    private Lista CiudadSelect { get; set; }
+    private Lista Todos = new Lista();
+
+    private int idDepartamento;
+    private int idCiudad;
+
+    private string searchString = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Todos.Id = 0;
+        Todos.Descripcion = "-- Todos --";
+
+        Departamentos.Add(Todos);
+        Departamentos.AddRange( (await listaService.GetLista("Departamento", null, null, null)).ToList() );
+
+        DepartamentoSelect = Todos;
+        Ciudades = new List<Lista>();
+
+        await UpdateGrid();
+    }
+
+    private async Task UpdateGrid()
+    {
+        Conjuntos = await conjuntoService.GetConjuntos(idDepartamento, idCiudad);
+    }
+
+    private bool FilterFunc(Conjunto element)
+    {
+        if (string.IsNullOrWhiteSpace(searchString)) return true;
+        if (element.Nombre.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (element.DescUbicacion.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
+
+    private async Task<IEnumerable<Lista>> SearchDepartamento(string value)
+    {
+        IEnumerable<Lista> c = new List<Lista>();
+
+
+        if ((DepartamentoSelect.Id==0 && DepartamentoSelect.Descripcion ==value ) || value == null || value == "")
+        {
+            c = Departamentos;
+        }
+        else
+        {
+            c = Departamentos.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return c;
+    }
+
+    private async Task<IEnumerable<Lista>> SearchCiudad(string value)
+    {
+        IEnumerable<Lista> c = new List<Lista>();
+
+        if ((CiudadSelect.Id == 0 && CiudadSelect.Descripcion == value) || value == null || value == "")
+        {
+            c = Ciudades;
+        }
+        else
+        {
+            c = Ciudades.Where(e => e.Descripcion.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return c;
+    }
+
+    #region Eventos Grid
+
+    private async Task AddConjunto()
+    {
+        await ShowConjuntoForm(0, idDepartamento, idCiudad, "ADD");
+    }
+
+    private async Task EditConjunto(Conjunto data)
+    {
+        await ShowConjuntoForm(data.IdConjunto, 0, 0, "EDIT");
+    }
+
+    private void AddApartamento(Conjunto data)
+    {
+        navigationManager.NavigateTo($"apartamentos/{data.IdConjunto}");
+    }
+
+    public async Task Departamento_OnChange(Lista valor)
+    {
+        idDepartamento = valor.Id;
+        if (valor.Id != 0)
+        {
+
+            Ciudades.Add(Todos);
+            Ciudades.AddRange((await listaService.GetLista("Ciudad", idDepartamento, null, null)).ToList());
+        }
+        else
+        {
+            Ciudades = new List<Lista>();
+        }
+
+        idCiudad = 0;
+        CiudadSelect = Todos;
+
+        DepartamentoSelect = valor;
+
+        await UpdateGrid();
+    }
+
+    public async Task Ciudad_OnChange(Lista valor)
+    {
+        idCiudad = valor.Id;
+        CiudadSelect = valor;
+        await UpdateGrid();
+    }
+
+    #endregion
+
+    #region Eventos Form
+
+    private async Task ShowConjuntoForm(int idConjunto, int idDepartamento, int idCiudad, string accion)
+    {
+        var parameters = new DialogParameters
+    {
+            {nameof(ConjuntoForm.IdConjunto), idConjunto},
+            {nameof(ConjuntoForm.IdDepartamento), idDepartamento},
+            {nameof(ConjuntoForm.IdCiudad), idCiudad},
+            {nameof(ConjuntoForm.Accion), accion}
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            DisableBackdropClick = true
+        };
+
+        var dialog = dialogService.Show<ConjuntoForm>("Cargando...", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            await UpdateGrid();
+            //accepted = (bool)(result.Data ?? false);
+        }
+    }
+
+    #endregion
+}

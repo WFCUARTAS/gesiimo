@@ -1,0 +1,30 @@
+﻿@using GESIIMO.Services
+
+@inject IPreguntaService preguntaService
+
+<MudDialog>
+    <DialogContent>
+        <MudText>Eliminar pregunta y respuestas </MudText>
+        <MudText>@Pregunta</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Eliminar">Eliminar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public int IdPregunta { get; set; }
+    [Parameter] public string Pregunta { get; set; }
+
+
+    void Cancel() => MudDialog.Cancel();
+
+    public async Task Eliminar()
+    {
+        await preguntaService.DelPregunta(IdPregunta);
+
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}
